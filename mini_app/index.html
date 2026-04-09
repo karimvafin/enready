@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>EnReady — Learn English Fast</title>
+  <link rel="icon" href="assets/icon.svg">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HOME VIEW -->
+  <section class="view active" id="view-home">
+    <div class="home-content">
+      <img src="assets/icon.svg" alt="EnReady" class="home-icon">
+      <div class="home-title">EnReady</div>
+      <div class="home-subtitle">Learn English words and phrases<br>on any topic you need</div>
+    </div>
+    <form class="home-form" id="home-form">
+      <div class="home-input-wrap">
+        <input type="text" id="home-input" placeholder="What do you want to learn?" autocomplete="off">
+        <button type="submit" class="send-btn" aria-label="Send">&#10148;</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- TOPIC VIEW -->
+  <section class="view" id="view-topic">
+    <div class="topic-header">
+      <h1 id="topic-title">English Interview</h1>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="cards">Cards</button>
+      <button class="tab-btn" data-tab="learning">Learning</button>
+      <button class="tab-btn" data-tab="dialog">Dialog</button>
+    </div>
+
+    <!-- Cards tab -->
+    <div class="tab-content active" id="tab-cards">
+      <div class="cards-area">
+        <div id="cards-container"></div>
+        <div class="cards-nav">
+          <button id="card-prev">&#8592;</button>
+          <span class="cards-counter" id="cards-counter">1 / 15</span>
+          <button id="card-next">&#8594;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Learning tab -->
+    <div class="tab-content" id="tab-learning">
+      <div class="learning-area" id="learning-area"></div>
+      <div class="learning-result" id="learning-result">
+        <div class="learning-emoji" id="learning-emoji"></div>
+        <div class="learning-score-text">Your score</div>
+        <div class="learning-score-num" id="learning-score"></div>
+        <div class="learning-percentage" id="learning-percentage"></div>
+        <button id="learning-next-exercise" style="display:none">Next Exercise →</button>
+        <button id="learning-restart" style="display:none">Start Over</button>
+      </div>
+    </div>
+
+    <!-- Dialog tab -->
+    <div class="tab-content" id="tab-dialog">
+      <div class="dialog-area">
+        <div class="dialog-messages" id="dialog-messages"></div>
+        <form class="dialog-form" id="dialog-form">
+          <div class="dialog-input-wrap">
+            <input type="text" id="dialog-input" placeholder="Type your answer..." autocomplete="off">
+            <button type="submit" class="dialog-send" aria-label="Send">&#10148;</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </section>
+
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
