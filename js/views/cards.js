@@ -16,6 +16,10 @@ export function initCards() {
 
   document.getElementById('card-prev').addEventListener('click', () => navigate(-1));
   document.getElementById('card-next').addEventListener('click', () => navigate(1));
+  document.getElementById('card-reset').addEventListener('click', () => {
+    resetCards();
+    tg.hapticLight();
+  });
 
   container.addEventListener('touchstart', (e) => {
     touchStartX = e.changedTouches[0].screenX;

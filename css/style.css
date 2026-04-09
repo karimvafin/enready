@@ -343,6 +343,22 @@ body {
   text-align: center;
 }
 
+.cards-reset-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.cards-reset-btn:active {
+  background: var(--primary-pale);
+}
+
 /* ===== LEARNING ===== */
 .learning-area {
   padding: 20px;
