@@ -125,6 +125,15 @@ body {
   line-height: 1.5;
 }
 
+.home-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.6;
+  opacity: 0.7;
+  max-width: 300px;
+}
+
 .home-form {
   position: sticky;
   bottom: 0;
@@ -480,9 +489,11 @@ body {
   color: var(--text);
 }
 
-.option-btn:hover {
-  border-color: var(--primary-light);
-  background: var(--primary-pale);
+@media (hover: hover) {
+  .option-btn:hover {
+    border-color: var(--primary-light);
+    background: var(--primary-pale);
+  }
 }
 
 .option-btn.correct {

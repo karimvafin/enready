@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>EnReady — Learn English Fast</title>
+  <title>EnReady — \u0423\u0447\u0438 \u0430\u043d\u0433\u043b\u0438\u0439\u0441\u043a\u0438\u0439 \u0431\u044b\u0441\u0442\u0440\u043e</title>
   <link rel="icon" href="assets/icon.svg">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -17,11 +17,12 @@
     <div class="home-content">
       <img src="assets/icon.svg" alt="EnReady" class="home-icon">
       <div class="home-title">EnReady</div>
-      <div class="home-subtitle">Learn English words and phrases<br>on any topic you need</div>
+      <div class="home-subtitle">Учи английские слова и фразы<br>на любую тему</div>
+      <div class="home-description">Напиши тему и получи персональные карточки, упражнения на перевод и подстановку слов — всё генерируется ИИ за несколько секунд.</div>
     </div>
     <form class="home-form" id="home-form">
       <div class="home-input-wrap">
-        <input type="text" id="home-input" placeholder="What do you want to learn?" autocomplete="off">
+        <input type="text" id="home-input" placeholder="Напр. Подготовка к собеседованию" autocomplete="off">
         <button type="submit" class="send-btn" aria-label="Send">&#10148;</button>
       </div>
     </form>
@@ -31,8 +32,8 @@
   <section class="view" id="view-loading">
     <div class="loading-content">
       <div class="loading-spinner"></div>
-      <div class="loading-text">Generating materials...</div>
-      <div class="loading-subtext" id="loading-subtext">This may take a few seconds</div>
+      <div class="loading-text">Генерируем материалы...</div>
+      <div class="loading-subtext" id="loading-subtext">Это займёт несколько секунд</div>
     </div>
   </section>
 
@@ -43,9 +44,9 @@
     </div>
 
     <div class="tabs">
-      <button class="tab-btn active" data-tab="cards">Cards</button>
-      <button class="tab-btn" data-tab="learning">Learning</button>
-      <button class="tab-btn" data-tab="dialog">Dialog</button>
+      <button class="tab-btn active" data-tab="cards">Карточки</button>
+      <button class="tab-btn" data-tab="learning">Упражнения</button>
+      <button class="tab-btn" data-tab="dialog">Диалог</button>
     </div>
 
     <!-- Cards tab -->
@@ -57,7 +58,7 @@
           <span class="cards-counter" id="cards-counter">1 / 15</span>
           <button id="card-next">&#8594;</button>
         </div>
-        <button class="cards-reset-btn" id="card-reset">Back to first card</button>
+        <button class="cards-reset-btn" id="card-reset">В начало</button>
       </div>
     </div>
 
@@ -66,7 +67,7 @@
       <div class="learning-area" id="learning-area"></div>
       <div class="learning-result" id="learning-result">
         <div class="learning-emoji" id="learning-emoji"></div>
-        <div class="learning-score-text">Your score</div>
+        <div class="learning-score-text">Ваш результат</div>
         <div class="learning-score-num" id="learning-score"></div>
         <div class="learning-percentage" id="learning-percentage"></div>
         <button id="learning-next-exercise" style="display:none">Next Exercise →</button>
@@ -80,7 +81,7 @@
         <div class="dialog-messages" id="dialog-messages"></div>
         <form class="dialog-form" id="dialog-form">
           <div class="dialog-input-wrap">
-            <input type="text" id="dialog-input" placeholder="Type your answer..." autocomplete="off">
+            <input type="text" id="dialog-input" placeholder="Напишите ответ..." autocomplete="off">
             <button type="submit" class="dialog-send" aria-label="Send">&#10148;</button>
           </div>
         </form>
