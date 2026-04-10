@@ -66,7 +66,7 @@ Rules:
           'X-Title': 'EnReady'
         },
         body: JSON.stringify({
-          model: env.OPENROUTER_MODEL || 'qwen/qwen3-235b-a22b-2507',
+          model: env.OPENROUTER_MODEL || 'google/gemma-4-26b-a4b-it:free',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
           max_tokens: 4000
