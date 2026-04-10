@@ -66,7 +66,7 @@ Rules:
           'X-Title': 'EnReady'
         },
         body: JSON.stringify({
-          model: env.OPENROUTER_MODEL || 'qwen/qwen3-8b:free',
+          model: env.OPENROUTER_MODEL || 'qwen/qwen3-235b-a22b-2507',
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
           max_tokens: 4000
@@ -75,7 +75,7 @@ Rules:
 
       if (!response.ok) {
         const errText = await response.text();
-        return new Response(JSON.stringify({ error: 'OpenRouter error', details: errText }), {
+        return new Response(JSON.stringify({ error: 'OpenRouter: ' + errText }), {
           status: 502,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
