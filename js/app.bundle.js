@@ -205,12 +205,37 @@
     }, false);
   }
 
+  var isAnimating = false;
+
   function navigateCard(dir) {
     var next = currentCardIndex + dir;
-    if (next < 0 || next >= CARDS.length) return;
-    currentCardIndex = next;
+    if (next < 0 || next >= CARDS.length || isAnimating) return;
+    isAnimating = true;
     tg.hapticLight();
-    renderCard();
+
+    var container = $('cards-container');
+    var oldCard = container.firstChild;
+    if (oldCard) {
+      oldCard.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
+      oldCard.style.transform = 'translateX(' + (dir > 0 ? '-60px' : '60px') + ')';
+      oldCard.style.opacity = '0';
+    }
+
+    setTimeout(function() {
+      currentCardIndex = next;
+      renderCard();
+      var newCard = container.firstChild;
+      if (newCard) {
+        newCard.style.transform = 'translateX(' + (dir > 0 ? '60px' : '-60px') + ')';
+        newCard.style.opacity = '0';
+        // force reflow
+        newCard.offsetHeight;
+        newCard.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
+        newCard.style.transform = 'translateX(0)';
+        newCard.style.opacity = '1';
+      }
+      setTimeout(function() { isAnimating = false; }, 250);
+    }, 200);
   }
 
   function resetCards() {
