@@ -145,13 +145,13 @@ async function handleBotWebhook(request, env) {
       await incrementStat(env, 'bot_users');
 
       await sendTelegramMessage(env, chatId,
-        '👋 *Добро пожаловать в EnReady!*\n\n' +
-        'Я помогу тебе быстро выучить английские слова и фразы на любую тему\\.\n\n' +
-        '📝 Напиши тему — и я создам для тебя:\n' +
-        '• *Карточки* со словами и переводом\n' +
-        '• *Упражнения* на перевод\n' +
-        '• *Задания* на подстановку слов\n\n' +
-        'Нажми кнопку ниже, чтобы начать\\! 👇',
+        '👋 <b>Добро пожаловать в EnReady!</b>\n\n' +
+        'Я помогу тебе быстро выучить английские слова и фразы на любую тему.\n\n' +
+        '📝 Напиши тему и я создам для тебя:\n' +
+        '▸ <b>Карточки</b> со словами и переводом\n' +
+        '▸ <b>Упражнения</b> на перевод\n' +
+        '▸ <b>Задания</b> на подстановку слов\n\n' +
+        'Нажми кнопку ниже, чтобы начать! 👇',
         {
           inline_keyboard: [[{
             text: '🚀 Открыть EnReady',
@@ -160,7 +160,6 @@ async function handleBotWebhook(request, env) {
         }
       );
     } else if (text === '/stats') {
-      // Only allow admin
       const adminId = env.ADMIN_CHAT_ID;
       if (adminId && String(chatId) === String(adminId)) {
         const keys = ['bot_users', 'app_opens', 'generations_total', 'generations_success', 'generations_error'];
@@ -169,19 +168,19 @@ async function handleBotWebhook(request, env) {
           stats[key] = parseInt(await env.STATS.get(key) || '0', 10);
         }
         await sendTelegramMessage(env, chatId,
-          '📊 *Статистика EnReady*\n\n' +
-          '👤 Пользователей бота: *' + stats.bot_users + '*\n' +
-          '📱 Открытий приложения: *' + stats.app_opens + '*\n' +
-          '🔄 Всего генераций: *' + stats.generations_total + '*\n' +
-          '✅ Успешных: *' + stats.generations_success + '*\n' +
-          '❌ Ошибок: *' + stats.generations_error + '*'
+          '📊 <b>Статистика EnReady</b>\n\n' +
+          '👤 Пользователей бота: <b>' + stats.bot_users + '</b>\n' +
+          '📱 Открытий приложения: <b>' + stats.app_opens + '</b>\n' +
+          '🔄 Всего генераций: <b>' + stats.generations_total + '</b>\n' +
+          '✅ Успешных: <b>' + stats.generations_success + '</b>\n' +
+          '❌ Ошибок: <b>' + stats.generations_error + '</b>'
         );
       } else {
-        await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору\\.');
+        await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
       }
     } else {
       await sendTelegramMessage(env, chatId,
-        'Нажми кнопку ниже, чтобы открыть приложение\\! 👇',
+        'Нажми кнопку ниже, чтобы открыть приложение! 👇',
         {
           inline_keyboard: [[{
             text: '🚀 Открыть EnReady',
@@ -199,7 +198,7 @@ async function sendTelegramMessage(env, chatId, text, replyMarkup) {
   const body = {
     chat_id: chatId,
     text: text,
-    parse_mode: 'MarkdownV2'
+    parse_mode: 'HTML'
   };
   if (replyMarkup) {
     body.reply_markup = replyMarkup;
