@@ -1,3 +1,7 @@
 name = "enready-api"
 main = "index.js"
 compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "STATS"
+id = "edd329ecfc8646f9b7215da4bab70138"

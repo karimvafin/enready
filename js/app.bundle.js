@@ -93,6 +93,16 @@
     }
   };
 
+  // ===== TRACK EVENT =====
+  function trackEvent(event) {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', API_URL + '/track', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.send(JSON.stringify({ event: event }));
+    } catch(e) {}
+  }
+
   // ===== DYNAMIC DATA =====
   var CARDS = [];
   var SENTENCES = [];
@@ -512,6 +522,7 @@
 
     init: function() {
       tg.init();
+      trackEvent('app_opened');
       initHome(this);
       initCards();
       initLearning();

@@ -1,30 +1,34 @@
-export default {
-  async fetch(request, env) {
-    // CORS headers
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    };
+// ===== HELPERS =====
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
 
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders });
-    }
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
 
-    if (request.method !== 'POST') {
-      return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-    }
+async function incrementStat(env, key) {
+  try {
+    const val = parseInt(await env.STATS.get(key) || '0', 10);
+    await env.STATS.put(key, String(val + 1));
+  } catch(e) {}
+}
 
-    try {
-      const { topic } = await request.json();
-      if (!topic || typeof topic !== 'string' || topic.length > 500) {
-        return new Response(JSON.stringify({ error: 'Invalid topic' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
+// ===== GENERATE ENDPOINT =====
+async function handleGenerate(request, env) {
+  const { topic } = await request.json();
+  if (!topic || typeof topic !== 'string' || topic.length > 500) {
+    return jsonResponse({ error: 'Invalid topic' }, 400);
+  }
 
-      const prompt = `You are an English language tutor. Generate learning materials for the topic: "${topic}".
+  await incrementStat(env, 'generations_total');
+
+  const prompt = `You are an English language tutor. Generate learning materials for the topic: "${topic}".
 
 Return a valid JSON object with exactly this structure (no markdown, no code blocks, just raw JSON):
 {
@@ -57,61 +61,191 @@ Rules:
 - IDs should be 1 through 10
 - Return ONLY valid JSON, no other text`;
 
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + env.OPENROUTER_API_KEY,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://enready.app',
-          'X-Title': 'EnReady'
-        },
-        body: JSON.stringify({
-          model: env.OPENROUTER_MODEL || 'google/gemma-4-26b-a4b-it:free',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-          max_tokens: 4000
-        })
-      });
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + env.OPENROUTER_API_KEY,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://enready.app',
+      'X-Title': 'EnReady'
+    },
+    body: JSON.stringify({
+      model: env.OPENROUTER_MODEL || 'google/gemma-4-26b-a4b-it:free',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 4000
+    })
+  });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        return new Response(JSON.stringify({ error: 'OpenRouter: ' + errText }), {
-          status: 502,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+  if (!response.ok) {
+    await incrementStat(env, 'generations_error');
+    const errText = await response.text();
+    return jsonResponse({ error: 'OpenRouter: ' + errText }, 502);
+  }
+
+  const data = await response.json();
+  const content = data.choices[0].message.content;
+
+  let jsonStr = content.trim();
+  if (jsonStr.startsWith('```')) {
+    jsonStr = jsonStr.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+  }
+  jsonStr = jsonStr.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+
+  let result;
+  try {
+    result = JSON.parse(jsonStr);
+  } catch(e) {
+    await incrementStat(env, 'generations_error');
+    return jsonResponse({ error: 'Failed to parse model response' }, 502);
+  }
+
+  if (!result.cards || !result.sentences || !Array.isArray(result.cards) || !Array.isArray(result.sentences)) {
+    await incrementStat(env, 'generations_error');
+    return jsonResponse({ error: 'Invalid response format from model' }, 502);
+  }
+
+  await incrementStat(env, 'generations_success');
+  return jsonResponse(result);
+}
+
+// ===== TRACK EVENT ENDPOINT =====
+async function handleTrack(request, env) {
+  const { event } = await request.json();
+  if (event === 'app_opened') {
+    await incrementStat(env, 'app_opens');
+  }
+  return jsonResponse({ ok: true });
+}
+
+// ===== STATS ENDPOINT =====
+async function handleStats(request, env) {
+  const token = new URL(request.url).searchParams.get('token');
+  if (token !== env.STATS_TOKEN) {
+    return jsonResponse({ error: 'Unauthorized' }, 401);
+  }
+
+  const keys = ['bot_users', 'app_opens', 'generations_total', 'generations_success', 'generations_error'];
+  const stats = {};
+  for (const key of keys) {
+    stats[key] = parseInt(await env.STATS.get(key) || '0', 10);
+  }
+  return jsonResponse(stats);
+}
+
+// ===== TELEGRAM BOT WEBHOOK =====
+async function handleBotWebhook(request, env) {
+  const update = await request.json();
+
+  if (update.message && update.message.text) {
+    const chatId = update.message.chat.id;
+    const text = update.message.text;
+
+    if (text === '/start') {
+      await incrementStat(env, 'bot_users');
+
+      await sendTelegramMessage(env, chatId,
+        '👋 *Добро пожаловать в EnReady!*\n\n' +
+        'Я помогу тебе быстро выучить английские слова и фразы на любую тему\\.\n\n' +
+        '📝 Напиши тему — и я создам для тебя:\n' +
+        '• *Карточки* со словами и переводом\n' +
+        '• *Упражнения* на перевод\n' +
+        '• *Задания* на подстановку слов\n\n' +
+        'Нажми кнопку ниже, чтобы начать\\! 👇',
+        {
+          inline_keyboard: [[{
+            text: '🚀 Открыть EnReady',
+            web_app: { url: env.WEBAPP_URL }
+          }]]
+        }
+      );
+    } else if (text === '/stats') {
+      // Only allow admin
+      const adminId = env.ADMIN_CHAT_ID;
+      if (adminId && String(chatId) === String(adminId)) {
+        const keys = ['bot_users', 'app_opens', 'generations_total', 'generations_success', 'generations_error'];
+        const stats = {};
+        for (const key of keys) {
+          stats[key] = parseInt(await env.STATS.get(key) || '0', 10);
+        }
+        await sendTelegramMessage(env, chatId,
+          '📊 *Статистика EnReady*\n\n' +
+          '👤 Пользователей бота: *' + stats.bot_users + '*\n' +
+          '📱 Открытий приложения: *' + stats.app_opens + '*\n' +
+          '🔄 Всего генераций: *' + stats.generations_total + '*\n' +
+          '✅ Успешных: *' + stats.generations_success + '*\n' +
+          '❌ Ошибок: *' + stats.generations_error + '*'
+        );
+      } else {
+        await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору\\.');
+      }
+    } else {
+      await sendTelegramMessage(env, chatId,
+        'Нажми кнопку ниже, чтобы открыть приложение\\! 👇',
+        {
+          inline_keyboard: [[{
+            text: '🚀 Открыть EnReady',
+            web_app: { url: env.WEBAPP_URL }
+          }]]
+        }
+      );
+    }
+  }
+
+  return new Response('OK');
+}
+
+async function sendTelegramMessage(env, chatId, text, replyMarkup) {
+  const body = {
+    chat_id: chatId,
+    text: text,
+    parse_mode: 'MarkdownV2'
+  };
+  if (replyMarkup) {
+    body.reply_markup = replyMarkup;
+  }
+
+  await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/sendMessage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+}
+
+// ===== ROUTER =====
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const path = url.pathname;
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    try {
+      // Telegram bot webhook
+      if (path === '/webhook' && request.method === 'POST') {
+        return handleBotWebhook(request, env);
       }
 
-      const data = await response.json();
-      const content = data.choices[0].message.content;
-
-      // Extract JSON from response (handle potential markdown wrapping)
-      let jsonStr = content.trim();
-      if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+      // Stats endpoint
+      if (path === '/stats' && request.method === 'GET') {
+        return handleStats(request, env);
       }
 
-      // Remove <think>...</think> blocks (some models like Qwen add reasoning)
-      jsonStr = jsonStr.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-
-      const result = JSON.parse(jsonStr);
-
-      // Validate structure
-      if (!result.cards || !result.sentences || !Array.isArray(result.cards) || !Array.isArray(result.sentences)) {
-        return new Response(JSON.stringify({ error: 'Invalid response format from model' }), {
-          status: 502,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+      // Track events from Mini App
+      if (path === '/track' && request.method === 'POST') {
+        return handleTrack(request, env);
       }
 
-      return new Response(JSON.stringify(result), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      // Generate materials (default POST)
+      if (request.method === 'POST') {
+        return handleGenerate(request, env);
+      }
 
+      return new Response('EnReady API', { status: 200 });
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return jsonResponse({ error: err.message }, 500);
     }
   }
 };
