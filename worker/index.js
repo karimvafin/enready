@@ -135,6 +135,7 @@ async function handleStats(request, env) {
 
 // ===== TELEGRAM BOT WEBHOOK =====
 async function handleBotWebhook(request, env) {
+  try {
   const update = await request.json();
 
   if (update.message && update.message.text) {
@@ -142,7 +143,12 @@ async function handleBotWebhook(request, env) {
     const text = update.message.text;
 
     if (text === '/start') {
-      await incrementStat(env, 'bot_users');
+      const userKey = 'user:' + chatId;
+      const exists = await env.STATS.get(userKey);
+      if (!exists) {
+        await env.STATS.put(userKey, '1');
+        await incrementStat(env, 'bot_users');
+      }
 
       await sendTelegramMessage(env, chatId,
         '👋 <b>Добро пожаловать в EnReady!</b>\n\n' +
@@ -178,6 +184,26 @@ async function handleBotWebhook(request, env) {
       } else {
         await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
       }
+    } else if (text === '/reset') {
+      const adminId = env.ADMIN_CHAT_ID;
+      if (adminId && String(chatId) === String(adminId)) {
+        const statKeys = ['bot_users', 'app_opens', 'generations_total', 'generations_success', 'generations_error'];
+        for (const key of statKeys) {
+          await env.STATS.put(key, '0');
+        }
+        // удаляем ключи уникальных пользователей
+        let cursor = undefined;
+        do {
+          const list = await env.STATS.list({ prefix: 'user:', cursor });
+          for (const key of list.keys) {
+            await env.STATS.delete(key.name);
+          }
+          cursor = list.list_complete ? undefined : list.cursor;
+        } while (cursor);
+        await sendTelegramMessage(env, chatId, '✅ Статистика обнулена.');
+      } else {
+        await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
+      }
     } else {
       await sendTelegramMessage(env, chatId,
         'Нажми кнопку ниже, чтобы открыть приложение! 👇',
@@ -191,6 +217,9 @@ async function handleBotWebhook(request, env) {
     }
   }
 
+  } catch(e) {
+    console.error('Webhook error:', e.message, e.stack);
+  }
   return new Response('OK');
 }
 
@@ -204,11 +233,15 @@ async function sendTelegramMessage(env, chatId, text, replyMarkup) {
     body.reply_markup = replyMarkup;
   }
 
-  await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/sendMessage', {
+  const resp = await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/sendMessage', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
+  if (!resp.ok) {
+    const err = await resp.text();
+    console.error('Telegram sendMessage error:', err);
+  }
 }
 
 // ===== ROUTER =====
