@@ -4,6 +4,136 @@
   // ===== CONFIG =====
   var API_URL = 'https://enready-api.enready.workers.dev'; // TODO: replace after deploy
   var selectedLevel = 'B1';
+  var currentLang = localStorage.getItem('enready_lang') || 'en';
+
+  // ===== I18N =====
+  var i18n = {
+    ru: {
+      // Home
+      home_subtitle: 'Учи английские слова и фразы<br>на любую тему',
+      home_description: 'Напиши тему и получи персональные карточки, упражнения на перевод и подстановку слов — всё генерируется ИИ за несколько секунд.',
+      home_placeholder: 'Напр. Я в иностранном аэропорту',
+      chip_restaurant: 'Ресторан',
+      chip_interview: 'Собеседование',
+      chip_travel: 'Путешествие',
+      history_title: 'История',
+      // Loading
+      loading_text: 'Генерируем материалы...',
+      loading_subtext: 'Это займёт несколько секунд',
+      loading_regen: 'Перегенерируем...',
+      // Tabs
+      tab_cards: 'Карточки',
+      tab_learning: 'Упражнения',
+      tab_dialog: 'Диалог',
+      // Cards
+      card_hint: 'Нажми, чтобы перевернуть',
+      card_reset: 'В начало',
+      card_regen: '\u21BB Перегенерировать',
+      // Learning
+      exercise_translate: 'Выберите перевод',
+      exercise_fillblank: 'Вставьте слово',
+      exercise_progress: ' из ',
+      exercise_next: 'Далее: вставьте слово \u2192',
+      exercise_restart: 'Начать заново',
+      result_title: 'Ваш результат',
+      // Dialog
+      dialog_hi: 'Hi! I\'m your practice partner. Let\'s learn together! \uD83C\uDFAF',
+      dialog_ask: 'What would you like to practice?',
+      dialog_placeholder: 'Напишите ответ...',
+      dialog_soon: 'Диалог скоро появится!',
+      // Errors
+      err_format: 'Неверный формат ответа',
+      err_parse: 'Ошибка обработки ответа',
+      err_network: 'Ошибка сети. Проверьте подключение.',
+      err_timeout: 'Время ожидания истекло. Попробуйте ещё.'
+    },
+    en: {
+      home_subtitle: 'Learn English words and phrases<br>on any topic',
+      home_description: 'Type a topic and get personalized flashcards, translation and fill-in-the-blank exercises — all AI-generated in seconds.',
+      home_placeholder: 'E.g. Job interview preparation',
+      chip_restaurant: 'Restaurant',
+      chip_interview: 'Interview',
+      chip_travel: 'Travel',
+      history_title: 'History',
+      loading_text: 'Generating materials...',
+      loading_subtext: 'This will take a few seconds',
+      loading_regen: 'Regenerating...',
+      tab_cards: 'Cards',
+      tab_learning: 'Exercises',
+      tab_dialog: 'Dialog',
+      card_hint: 'Tap to flip',
+      card_reset: 'Back to start',
+      card_regen: '\u21BB Regenerate',
+      exercise_translate: 'Choose the translation',
+      exercise_fillblank: 'Fill in the blank',
+      exercise_progress: ' of ',
+      exercise_next: 'Next: fill in the blank \u2192',
+      exercise_restart: 'Start over',
+      result_title: 'Your result',
+      dialog_hi: 'Hi! I\'m your practice partner. Let\'s learn together! \uD83C\uDFAF',
+      dialog_ask: 'What would you like to practice?',
+      dialog_placeholder: 'Type your answer...',
+      dialog_soon: 'Dialog is coming soon!',
+      err_format: 'Invalid response format',
+      err_parse: 'Error processing response',
+      err_network: 'Network error. Check your connection.',
+      err_timeout: 'Request timed out. Try again.'
+    }
+  };
+
+  function t(key) {
+    return (i18n[currentLang] && i18n[currentLang][key]) || (i18n.en[key]) || key;
+  }
+
+  function setLang(lang) {
+    currentLang = lang;
+    try { localStorage.setItem('enready_lang', lang); } catch(e) {}
+    updateTexts();
+  }
+
+  function updateTexts() {
+    // Home
+    var sub = $('home-subtitle');
+    if (sub) sub.innerHTML = t('home_subtitle');
+    var desc = $('home-description');
+    if (desc) desc.textContent = t('home_description');
+    var inp = $('home-input');
+    if (inp) inp.placeholder = t('home_placeholder');
+    // History
+    var ht = document.querySelector('.history-title');
+    if (ht) ht.textContent = t('history_title');
+    // Tabs
+    var tabBtns = $$('.tab-btn');
+    var tabKeys = ['tab_cards', 'tab_learning', 'tab_dialog'];
+    for (var i = 0; i < tabBtns.length && i < tabKeys.length; i++) {
+      tabBtns[i].textContent = t(tabKeys[i]);
+    }
+    // Cards buttons
+    var cr = $('card-reset');
+    if (cr) cr.textContent = t('card_reset');
+    var cg = $('card-regen');
+    if (cg) cg.innerHTML = t('card_regen');
+    // Loading
+    var lt = document.querySelector('.loading-text');
+    if (lt) lt.textContent = t('loading_text');
+    // Dialog placeholder
+    var di = $('dialog-input');
+    if (di) di.placeholder = t('dialog_placeholder');
+    // Chips
+    var chips = $$('.home-chip');
+    var chipKeys = ['chip_restaurant', 'chip_interview', 'chip_travel'];
+    for (var i = 0; i < chips.length && i < chipKeys.length; i++) {
+      chips[i].textContent = t(chipKeys[i]);
+    }
+    // Learning result
+    var lst = $('learning-score-text');
+    if (lst) lst.textContent = t('result_title');
+    // Lang toggle
+    var langBtns = $$('.lang-btn');
+    for (var i = 0; i < langBtns.length; i++) {
+      setClass(langBtns[i], 'active', langBtns[i].getAttribute('data-lang') === currentLang);
+    }
+  }
 
   // ===== ERROR OVERLAY =====
   window.onerror = function(msg, src, line) {
@@ -203,10 +333,10 @@
           } else if (data.error) {
             onError(data.error);
           } else {
-            onError('\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u0444\u043e\u0440\u043c\u0430\u0442 \u043e\u0442\u0432\u0435\u0442\u0430');
+            onError(t('err_format'));
           }
         } catch(e) {
-          onError('\u041e\u0448\u0438\u0431\u043a\u0430 \u043e\u0431\u0440\u0430\u0431\u043e\u0442\u043a\u0438 \u043e\u0442\u0432\u0435\u0442\u0430');
+          onError(t('err_parse'));
         }
       } else {
         try {
@@ -218,8 +348,8 @@
       }
     };
 
-    xhr.onerror = function() { onError('\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0442\u0438. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435.'); };
-    xhr.ontimeout = function() { onError('\u0412\u0440\u0435\u043c\u044f \u043e\u0436\u0438\u0434\u0430\u043d\u0438\u044f \u0438\u0441\u0442\u0435\u043a\u043b\u043e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451.'); };
+    xhr.onerror = function() { onError(t('err_network')); };
+    xhr.ontimeout = function() { onError(t('err_timeout')); };
 
     var payload = { topic: topic, level: selectedLevel };
     if (exclude && exclude.length) { payload.exclude = exclude; }
@@ -326,7 +456,7 @@
       var text = input.value.trim();
       if (!text) return;
       input.value = '';
-      showToast('Dialog is coming soon!');
+      showToast(t('dialog_soon'));
     });
   }
 
@@ -334,11 +464,11 @@
     $('dialog-messages').innerHTML =
       '<div class="dialog-msg bot">' +
         '<div class="dialog-avatar">En</div>' +
-        '<div class="dialog-bubble">Hi! I\'m your practice partner. Let\'s learn together! \uD83C\uDFAF</div>' +
+        '<div class="dialog-bubble">' + t('dialog_hi') + '</div>' +
       '</div>' +
       '<div class="dialog-msg bot">' +
         '<div class="dialog-avatar">En</div>' +
-        '<div class="dialog-bubble">What would you like to practice?</div>' +
+        '<div class="dialog-bubble">' + t('dialog_ask') + '</div>' +
       '</div>';
   }
 
@@ -381,7 +511,7 @@
       }
       tg.hapticMedium();
       app.showView('loading');
-      $('loading-subtext').textContent = '\u041f\u0435\u0440\u0435\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u0443\u0435\u043c...';
+      $('loading-subtext').textContent = t('loading_regen');
       generateMaterials(currentTopic, function(data) {
         CARDS = data.cards;
         SENTENCES = data.sentences;
@@ -544,7 +674,7 @@
 
     area.innerHTML =
       '<div class="exercise-header">' +
-        '<div class="exercise-title">\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u044b\u0439 \u043f\u0435\u0440\u0435\u0432\u043e\u0434</div>' +
+        '<div class="exercise-title">' + t('exercise_translate') + '</div>' +
         '<div class="exercise-progress">' +
           '<div class="progress-bar">' +
             '<div class="progress-fill" style="width: ' + ((learningStep / CARDS.length) * 100) + '%"></div>' +
@@ -579,7 +709,7 @@
 
     area.innerHTML =
       '<div class="exercise-header">' +
-        '<div class="exercise-title">\u0412\u0441\u0442\u0430\u0432\u044c\u0442\u0435 \u043f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043d\u043e\u0435 \u0441\u043b\u043e\u0432\u043e</div>' +
+        '<div class="exercise-title">' + t('exercise_fillblank') + '</div>' +
         '<div class="exercise-progress">' +
           '<div class="progress-bar">' +
             '<div class="progress-fill" style="width: ' + ((learningStep / CARDS.length) * 100) + '%"></div>' +
@@ -630,20 +760,31 @@
 
     if (exercise === 1) {
       $('learning-next-exercise').style.display = '';
-      $('learning-next-exercise').textContent = '\u0414\u0430\u043b\u0435\u0435: \u0432\u0441\u0442\u0430\u0432\u044c\u0442\u0435 \u0441\u043b\u043e\u0432\u043e \u2192';
+      $('learning-next-exercise').textContent = t('exercise_next');
       $('learning-restart').style.display = 'none';
       resetFeedbackBlock();
-      tg.showMain('\u0414\u0430\u043b\u0435\u0435: \u0432\u0441\u0442\u0430\u0432\u044c\u0442\u0435 \u0441\u043b\u043e\u0432\u043e \u2192', function() { startExercise(2); });
+      tg.showMain(t('exercise_next'), function() { startExercise(2); });
     } else {
       $('learning-next-exercise').style.display = 'none';
       $('learning-restart').style.display = '';
       showFeedbackBlock();
-      tg.showMain('\u041d\u0430\u0447\u0430\u0442\u044c \u0437\u0430\u043d\u043e\u0432\u043e', function() { startExercise(1); });
+      tg.showMain(t('exercise_restart'), function() { startExercise(1); });
     }
   }
 
   // ===== HOME =====
   function initHome(app) {
+    // Language toggle
+    var langBtns = $$('.lang-btn');
+    for (var i = 0; i < langBtns.length; i++) {
+      (function(btn) {
+        btn.addEventListener('click', function() {
+          setLang(btn.getAttribute('data-lang'));
+          tg.hapticLight();
+        }, false);
+      })(langBtns[i]);
+    }
+
     // Level selector
     var levelBtns = $$('.level-btn');
     for (var i = 0; i < levelBtns.length; i++) {
@@ -688,7 +829,7 @@
 
       // Show loading screen
       app.showView('loading');
-      $('loading-subtext').textContent = '\u042d\u0442\u043e \u0437\u0430\u0439\u043c\u0451\u0442 \u043d\u0435\u0441\u043a\u043e\u043b\u044c\u043a\u043e \u0441\u0435\u043a\u0443\u043d\u0434';
+      $('loading-subtext').textContent = t('loading_subtext');
 
       currentTopic = text;
       generateMaterials(text, function(data) {
@@ -757,6 +898,7 @@
       initLearning();
       initDialog();
       initFeedback();
+      updateTexts();
       renderHistory();
       var self = this;
       var tabBtns = $$('.tab-btn');

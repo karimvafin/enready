@@ -15,10 +15,14 @@
   <!-- HOME VIEW -->
   <section class="view active" id="view-home">
     <div class="home-content">
+      <div class="lang-toggle" id="lang-toggle">
+        <button type="button" class="lang-btn" data-lang="ru">RU</button>
+        <button type="button" class="lang-btn active" data-lang="en">EN</button>
+      </div>
       <img src="assets/icon.svg" alt="EnReady" class="home-icon">
       <div class="home-title">EnReady</div>
-      <div class="home-subtitle">Учи английские слова и фразы<br>на любую тему</div>
-      <div class="home-description">Напиши тему и получи персональные карточки, упражнения на перевод и подстановку слов — всё генерируется ИИ за несколько секунд.</div>
+      <div class="home-subtitle" id="home-subtitle">Учи английские слова и фразы<br>на любую тему</div>
+      <div class="home-description" id="home-description">Напиши тему и получи персональные карточки, упражнения на перевод и подстановку слов — всё генерируется ИИ за несколько секунд.</div>
       <div class="level-selector" id="level-selector">
         <button type="button" class="level-btn" data-level="A2">A2</button>
         <button type="button" class="level-btn active" data-level="B1">B1</button>
@@ -83,7 +87,7 @@
       <div class="learning-area" id="learning-area"></div>
       <div class="learning-result" id="learning-result">
         <div class="learning-emoji" id="learning-emoji"></div>
-        <div class="learning-score-text">Ваш результат</div>
+        <div class="learning-score-text" id="learning-score-text">Ваш результат</div>
         <div class="learning-score-num" id="learning-score"></div>
         <div class="learning-percentage" id="learning-percentage"></div>
         <button id="learning-next-exercise" style="display:none">Next Exercise →</button>

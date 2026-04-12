@@ -147,11 +147,14 @@ Rules:
     try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success, level) VALUES (?, ?, 1, ?)').bind(chat_id, topic, level).run(); } catch(e) {}
     // Запрашиваем отзыв после первой успешной генерации
     try {
-      const user = await env.DB.prepare('SELECT feedback_asked FROM users WHERE chat_id = ?').bind(chat_id).first();
+      const user = await env.DB.prepare('SELECT feedback_asked, lang FROM users WHERE chat_id = ?').bind(chat_id).first();
       if (user && !user.feedback_asked) {
         await env.DB.prepare('UPDATE users SET feedback_asked = 1 WHERE chat_id = ?').bind(chat_id).run();
-        await sendTelegramMessage(env, chat_id,
-          '\u{1F4AC} <b>Как вам EnReady?</b>\n\nОцените приложение \u2014 это займёт пару секунд:',
+        const uLang = user.lang || 'en';
+        const feedbackAskMsg = uLang === 'ru'
+          ? '\u{1F4AC} <b>Как вам EnReady?</b>\n\nОцените приложение \u2014 это займёт пару секунд:'
+          : '\u{1F4AC} <b>How do you like EnReady?</b>\n\nRate the app \u2014 it only takes a moment:';
+        await sendTelegramMessage(env, chat_id, feedbackAskMsg,
           {
             inline_keyboard: [[
               { text: '1 \u2B50', callback_data: 'rate_1' },
@@ -260,11 +263,19 @@ async function handleBotWebhook(request, env) {
               .bind(fbResult.id, chatId).run();
           }
 
+          // Определяем язык пользователя
+          let uLang = 'en';
+          try {
+            const u = await env.DB.prepare('SELECT lang FROM users WHERE chat_id = ?').bind(chatId).first();
+            if (u && u.lang) uLang = u.lang;
+          } catch(e) {}
+
           // Отвечаем на callback
+          const cbText = uLang === 'ru' ? '\u2B50'.repeat(rating) + ' Спасибо!' : '\u2B50'.repeat(rating) + ' Thanks!';
           await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/answerCallbackQuery', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ callback_query_id: cb.id, text: '\u2B50'.repeat(rating) + ' Спасибо!' })
+            body: JSON.stringify({ callback_query_id: cb.id, text: cbText })
           });
 
           // Убираем кнопки из сообщения
@@ -275,13 +286,18 @@ async function handleBotWebhook(request, env) {
           });
 
           // Предлагаем оставить комментарий
-          await sendTelegramMessage(env, chatId,
-            '\u2B50'.repeat(rating) + ' Спасибо за оценку!\n\n' +
-            'Если хотите, напишите комментарий \u2014 что понравилось или что улучшить.\n' +
-            'Или просто нажмите кнопку ниже, чтобы продолжить.',
+          const commentMsg = uLang === 'ru'
+            ? '\u2B50'.repeat(rating) + ' Спасибо за оценку!\n\n' +
+              'Если хотите, напишите комментарий \u2014 что понравилось или что улучшить.\n' +
+              'Или просто нажмите кнопку ниже, чтобы продолжить.'
+            : '\u2B50'.repeat(rating) + ' Thanks for rating!\n\n' +
+              'Feel free to leave a comment \u2014 what you liked or what to improve.\n' +
+              'Or just tap the button below to continue.';
+          const openBtn = uLang === 'ru' ? '\u{1F680} Открыть EnReady' : '\u{1F680} Open EnReady';
+          await sendTelegramMessage(env, chatId, commentMsg,
             {
               inline_keyboard: [[{
-                text: '\u{1F680} Открыть EnReady',
+                text: openBtn,
                 web_app: { url: env.WEBAPP_URL }
               }]]
             }
@@ -296,21 +312,26 @@ async function handleBotWebhook(request, env) {
       const chatId = update.message.chat.id;
       const text = update.message.text;
       const from = update.message.from || {};
+      const lang = (from.language_code || '').startsWith('ru') ? 'ru' : 'en';
 
       // Проверяем, ждём ли комментарий к отзыву
       if (!text.startsWith('/')) {
         try {
-          const user = await env.DB.prepare('SELECT awaiting_feedback_id FROM users WHERE chat_id = ?').bind(chatId).first();
+          const user = await env.DB.prepare('SELECT awaiting_feedback_id, lang FROM users WHERE chat_id = ?').bind(chatId).first();
           if (user && user.awaiting_feedback_id) {
             await env.DB.prepare('UPDATE feedback SET text = ? WHERE id = ?')
               .bind(text.substring(0, 1000), user.awaiting_feedback_id).run();
             await env.DB.prepare('UPDATE users SET awaiting_feedback_id = NULL WHERE chat_id = ?')
               .bind(chatId).run();
-            await sendTelegramMessage(env, chatId,
-              '\u{1F64F} Спасибо за отзыв! Мы обязательно учтём ваше мнение.',
+            const uLang = user.lang || lang;
+            const thanksMsg = uLang === 'ru'
+              ? '\u{1F64F} Спасибо за отзыв! Мы обязательно учтём ваше мнение.'
+              : '\u{1F64F} Thanks for your feedback! We\'ll take it into account.';
+            const openBtn = uLang === 'ru' ? '\u{1F680} Открыть EnReady' : '\u{1F680} Open EnReady';
+            await sendTelegramMessage(env, chatId, thanksMsg,
               {
                 inline_keyboard: [[{
-                  text: '\u{1F680} Открыть EnReady',
+                  text: openBtn,
                   web_app: { url: env.WEBAPP_URL }
                 }]]
               }
@@ -325,8 +346,8 @@ async function handleBotWebhook(request, env) {
       if (text === '/start') {
         try {
           await env.DB.prepare(
-            'INSERT INTO users (chat_id, username, first_name) VALUES (?, ?, ?) ON CONFLICT(chat_id) DO UPDATE SET username = excluded.username, first_name = excluded.first_name'
-          ).bind(chatId, from.username || null, from.first_name || null).run();
+            'INSERT INTO users (chat_id, username, first_name, lang) VALUES (?, ?, ?, ?) ON CONFLICT(chat_id) DO UPDATE SET username = excluded.username, first_name = excluded.first_name, lang = excluded.lang'
+          ).bind(chatId, from.username || null, from.first_name || null, lang).run();
         } catch(e) {
           console.error('DB user insert error:', e.message);
         }
@@ -338,52 +359,76 @@ async function handleBotWebhook(request, env) {
           await incrementStat(env, 'bot_users');
         }
 
-        await sendTelegramMessage(env, chatId,
-          '\u{1F44B} <b>Добро пожаловать в EnReady!</b>\n\n' +
-          'Я помогу тебе быстро выучить английские слова и фразы на любую тему.\n\n' +
-          '\u{1F4DD} Напиши тему и я создам для тебя:\n' +
-          '\u25B8 <b>Карточки</b> со словами и переводом\n' +
-          '\u25B8 <b>Упражнения</b> на перевод\n' +
-          '\u25B8 <b>Задания</b> на подстановку слов\n\n' +
-          'Нажми кнопку ниже, чтобы начать! \u{1F447}',
+        const startMsg = lang === 'ru'
+          ? '\u{1F44B} <b>Добро пожаловать в EnReady!</b>\n\n' +
+            'Я помогу тебе быстро выучить английские слова и фразы на любую тему.\n\n' +
+            '\u{1F4DD} Напиши тему и я создам для тебя:\n' +
+            '\u25B8 <b>Карточки</b> со словами и переводом\n' +
+            '\u25B8 <b>Упражнения</b> на перевод\n' +
+            '\u25B8 <b>Задания</b> на подстановку слов\n\n' +
+            'Нажми кнопку ниже, чтобы начать! \u{1F447}'
+          : '\u{1F44B} <b>Welcome to EnReady!</b>\n\n' +
+            'I\'ll help you learn English words and phrases on any topic.\n\n' +
+            '\u{1F4DD} Type a topic and I\'ll create:\n' +
+            '\u25B8 <b>Flashcards</b> with words and translations\n' +
+            '\u25B8 <b>Translation</b> exercises\n' +
+            '\u25B8 <b>Fill-in-the-blank</b> exercises\n\n' +
+            'Tap the button below to start! \u{1F447}';
+        const openBtnText = lang === 'ru' ? '\u{1F680} Открыть EnReady' : '\u{1F680} Open EnReady';
+        await sendTelegramMessage(env, chatId, startMsg,
           {
             inline_keyboard: [[{
-              text: '\u{1F680} Открыть EnReady',
+              text: openBtnText,
               web_app: { url: env.WEBAPP_URL }
             }]]
           }
         );
       } else if (text === '/help') {
         const dailyLimit = parseInt(env.DAILY_LIMIT || '10', 10);
-        await sendTelegramMessage(env, chatId,
-          '\u{2753} <b>Как работает EnReady</b>\n\n' +
-
-          '<b>Что это?</b>\n' +
-          'EnReady \u2014 бот для изучения английских слов и фраз. Ты пишешь тему, а ИИ генерирует персональные учебные материалы.\n\n' +
-
-          '<b>Что ты получишь:</b>\n' +
-          '\u25B8 <b>10 карточек</b> \u2014 слово, перевод, объяснение и пример\n' +
-          '\u25B8 <b>Упражнение на перевод</b> \u2014 выбери правильный перевод из вариантов\n' +
-          '\u25B8 <b>Упражнение на подстановку</b> \u2014 вставь пропущенное слово в предложение\n' +
-          '\u25B8 <b>Озвучка</b> \u2014 нажми на кнопку \u{1F509} на карточке, чтобы услышать произношение\n\n' +
-
-          '<b>Уровни сложности:</b>\n' +
-          'На главном экране можно выбрать уровень: A2, B1, B2 или C1. Слова подбираются по стандарту CEFR.\n\n' +
-
-          '<b>Лимиты:</b>\n' +
-          '\u25B8 ' + dailyLimit + ' генераций в день\n' +
-          '\u25B8 Если лимит исчерпан \u2014 попробуй завтра\n' +
-          '\u25B8 Пройденные темы сохраняются в истории и доступны без лимита\n\n' +
-
-          '<b>Кнопка \u00ABПерегенерировать\u00BB:</b>\n' +
-          'Если слова не понравились \u2014 нажми \u00ABПерегенерировать\u00BB в карточках. Бот создаст новые слова на ту же тему (старые не повторятся).\n\n' +
-
-          '<b>Команды:</b>\n' +
-          '/start \u2014 начать\n' +
-          '/help \u2014 это сообщение',
+        const helpMsg = lang === 'ru'
+          ? '\u{2753} <b>Как работает EnReady</b>\n\n' +
+            '<b>Что это?</b>\n' +
+            'EnReady \u2014 бот для изучения английских слов и фраз. Ты пишешь тему, а ИИ генерирует персональные учебные материалы.\n\n' +
+            '<b>Что ты получишь:</b>\n' +
+            '\u25B8 <b>10 карточек</b> \u2014 слово, перевод, объяснение и пример\n' +
+            '\u25B8 <b>Упражнение на перевод</b> \u2014 выбери правильный перевод из вариантов\n' +
+            '\u25B8 <b>Упражнение на подстановку</b> \u2014 вставь пропущенное слово в предложение\n' +
+            '\u25B8 <b>Озвучка</b> \u2014 нажми \u{1F509} на карточке, чтобы услышать произношение\n\n' +
+            '<b>Уровни сложности:</b>\n' +
+            'На главном экране выбери уровень: A2, B1, B2 или C1. Слова подбираются по стандарту CEFR.\n\n' +
+            '<b>Лимиты:</b>\n' +
+            '\u25B8 ' + dailyLimit + ' генераций в день\n' +
+            '\u25B8 Если лимит исчерпан \u2014 попробуй завтра\n' +
+            '\u25B8 Пройденные темы сохраняются в истории и доступны без лимита\n\n' +
+            '<b>Кнопка \u00ABПерегенерировать\u00BB:</b>\n' +
+            'Если слова не понравились \u2014 нажми \u00ABПерегенерировать\u00BB в карточках. Бот создаст новые слова (старые не повторятся).\n\n' +
+            '<b>Команды:</b>\n' +
+            '/start \u2014 начать\n' +
+            '/help \u2014 это сообщение'
+          : '\u{2753} <b>How EnReady works</b>\n\n' +
+            '<b>What is it?</b>\n' +
+            'EnReady is a bot for learning English vocabulary. Type a topic and AI generates personalized learning materials.\n\n' +
+            '<b>What you get:</b>\n' +
+            '\u25B8 <b>10 flashcards</b> \u2014 word, translation, explanation and example\n' +
+            '\u25B8 <b>Translation exercise</b> \u2014 choose the correct translation\n' +
+            '\u25B8 <b>Fill-in-the-blank</b> \u2014 complete the sentence with the missing word\n' +
+            '\u25B8 <b>Pronunciation</b> \u2014 tap \u{1F509} on a card to hear the word\n\n' +
+            '<b>Difficulty levels:</b>\n' +
+            'Choose your level on the home screen: A2, B1, B2 or C1. Words are selected according to the CEFR standard.\n\n' +
+            '<b>Limits:</b>\n' +
+            '\u25B8 ' + dailyLimit + ' generations per day\n' +
+            '\u25B8 If the limit is reached \u2014 try again tomorrow\n' +
+            '\u25B8 Completed topics are saved in history and available without limits\n\n' +
+            '<b>Regenerate button:</b>\n' +
+            'Don\'t like the words? Tap "Regenerate" in the cards tab. The bot will create new words for the same topic (no repeats).\n\n' +
+            '<b>Commands:</b>\n' +
+            '/start \u2014 get started\n' +
+            '/help \u2014 this message';
+        const helpBtnText = lang === 'ru' ? '\u{1F680} Открыть EnReady' : '\u{1F680} Open EnReady';
+        await sendTelegramMessage(env, chatId, helpMsg,
           {
             inline_keyboard: [[{
-              text: '\u{1F680} Открыть EnReady',
+              text: helpBtnText,
               web_app: { url: env.WEBAPP_URL }
             }]]
           }
@@ -441,7 +486,8 @@ async function handleBotWebhook(request, env) {
             feedbackText
           );
         } else {
-          await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
+          const adminMsg = lang === 'ru' ? 'Эта команда доступна только администратору.' : 'This command is only available to the admin.';
+          await sendTelegramMessage(env, chatId, adminMsg);
         }
       } else if (text === '/reset') {
         const adminId = env.ADMIN_CHAT_ID;
@@ -465,15 +511,19 @@ async function handleBotWebhook(request, env) {
           } catch(e) {}
           await sendTelegramMessage(env, chatId, '\u2705 Статистика обнулена.');
         } else {
-          await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
+          const adminMsg = lang === 'ru' ? 'Эта команда доступна только администратору.' : 'This command is only available to the admin.';
+          await sendTelegramMessage(env, chatId, adminMsg);
         }
       } else {
         // Любой другой текст — кнопка открытия приложения
-        await sendTelegramMessage(env, chatId,
-          'Нажми кнопку ниже, чтобы открыть приложение! \u{1F447}',
+        const fallbackMsg = lang === 'ru'
+          ? 'Нажми кнопку ниже, чтобы открыть приложение! \u{1F447}'
+          : 'Tap the button below to open the app! \u{1F447}';
+        const fallbackBtn = lang === 'ru' ? '\u{1F680} Открыть EnReady' : '\u{1F680} Open EnReady';
+        await sendTelegramMessage(env, chatId, fallbackMsg,
           {
             inline_keyboard: [[{
-              text: '\u{1F680} Открыть EnReady',
+              text: fallbackBtn,
               web_app: { url: env.WEBAPP_URL }
             }]]
           }
