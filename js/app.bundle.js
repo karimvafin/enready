@@ -326,7 +326,7 @@
       var text = input.value.trim();
       if (!text) return;
       input.value = '';
-      showToast('\u0414\u0438\u0430\u043b\u043e\u0433 \u0441\u043a\u043e\u0440\u043e \u043f\u043e\u044f\u0432\u0438\u0442\u0441\u044f \u0432 \u043f\u043e\u043b\u043d\u043e\u0439 \u0432\u0435\u0440\u0441\u0438\u0438!');
+      showToast('Dialog is coming soon!');
     });
   }
 
@@ -334,11 +334,11 @@
     $('dialog-messages').innerHTML =
       '<div class="dialog-msg bot">' +
         '<div class="dialog-avatar">En</div>' +
-        '<div class="dialog-bubble">\u041f\u0440\u0438\u0432\u0435\u0442! \u042f \u0442\u0432\u043e\u0439 \u043f\u0430\u0440\u0442\u043d\u0451\u0440 \u0434\u043b\u044f \u043f\u0440\u0430\u043a\u0442\u0438\u043a\u0438. \u0414\u0430\u0432\u0430\u0439 \u0443\u0447\u0438\u0442\u044c\u0441\u044f \u0432\u043c\u0435\u0441\u0442\u0435! \uD83C\uDFAF</div>' +
+        '<div class="dialog-bubble">Hi! I\'m your practice partner. Let\'s learn together! \uD83C\uDFAF</div>' +
       '</div>' +
       '<div class="dialog-msg bot">' +
         '<div class="dialog-avatar">En</div>' +
-        '<div class="dialog-bubble">\u0427\u0442\u043e \u0431\u044b \u0442\u044b \u0445\u043e\u0442\u0435\u043b \u043f\u043e\u043f\u0440\u0430\u043a\u0442\u0438\u043a\u043e\u0432\u0430\u0442\u044c?</div>' +
+        '<div class="dialog-bubble">What would you like to practice?</div>' +
       '</div>';
   }
 
