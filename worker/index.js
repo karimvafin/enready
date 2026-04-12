@@ -620,9 +620,22 @@ export default {
             language_code: 'ru'
           })
         });
+        // Кнопка меню с webapp
+        const menuBtn = await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/setChatMenuButton', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            menu_button: {
+              type: 'web_app',
+              text: 'Open EnReady',
+              web_app: { url: env.WEBAPP_URL }
+            }
+          })
+        });
         const defaultResult = await cmdDefault.json();
         const ruResult = await cmdRu.json();
-        return jsonResponse({ default: defaultResult, ru: ruResult });
+        const menuResult = await menuBtn.json();
+        return jsonResponse({ default: defaultResult, ru: ruResult, menu: menuResult });
       }
       if (path === '/stats' && request.method === 'GET') {
         return handleStats(request, env);
