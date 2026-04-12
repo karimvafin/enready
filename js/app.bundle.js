@@ -16,6 +16,9 @@
       chip_restaurant: 'Ресторан',
       chip_interview: 'Собеседование',
       chip_travel: 'Путешествие',
+      chip_topic_restaurant: 'Ресторан и кафе',
+      chip_topic_interview: 'Подготовка к собеседованию',
+      chip_topic_travel: 'Путешествие и аэропорт',
       history_title: 'История',
       // Loading
       loading_text: 'Генерируем материалы...',
@@ -54,6 +57,9 @@
       chip_restaurant: 'Restaurant',
       chip_interview: 'Interview',
       chip_travel: 'Travel',
+      chip_topic_restaurant: 'Restaurant and cafe',
+      chip_topic_interview: 'Job interview preparation',
+      chip_topic_travel: 'Travel and airport',
       history_title: 'History',
       loading_text: 'Generating materials...',
       loading_subtext: 'This will take a few seconds',
@@ -122,8 +128,10 @@
     // Chips
     var chips = $$('.home-chip');
     var chipKeys = ['chip_restaurant', 'chip_interview', 'chip_travel'];
+    var chipTopicKeys = ['chip_topic_restaurant', 'chip_topic_interview', 'chip_topic_travel'];
     for (var i = 0; i < chips.length && i < chipKeys.length; i++) {
       chips[i].textContent = t(chipKeys[i]);
+      chips[i].setAttribute('data-topic', t(chipTopicKeys[i]));
     }
     // Learning result
     var lst = $('learning-score-text');

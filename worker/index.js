@@ -37,12 +37,15 @@ async function handleGenerate(request, env) {
   }
   if (chat_id) {
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00';
       const count = await env.DB.prepare(
-        "SELECT COUNT(*) as cnt FROM generations WHERE chat_id = ? AND created_at >= ? || 'T00:00:00'"
-      ).bind(chat_id, today).first();
+        "SELECT COUNT(*) as cnt FROM generations WHERE chat_id = ? AND created_at >= ?"
+      ).bind(chat_id, todayStart).first();
       if (count && count.cnt >= dailyLimit) {
-        return jsonResponse({ error: 'Достигнут дневной лимит (' + dailyLimit + ' генераций). Попробуйте завтра!' }, 429);
+        const limitMsg = lang === 'ru'
+          ? 'Достигнут дневной лимит (' + dailyLimit + ' генераций). Попробуйте завтра!'
+          : 'Daily limit reached (' + dailyLimit + ' generations). Try again tomorrow!';
+        return jsonResponse({ error: limitMsg }, 429);
       }
     } catch(e) {
       console.error('Limit check error:', e.message);
