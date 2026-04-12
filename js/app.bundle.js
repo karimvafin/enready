@@ -95,6 +95,16 @@
     currentLang = lang;
     try { localStorage.setItem('enready_lang', lang); } catch(e) {}
     updateTexts();
+    // Сохраняем язык в DB
+    try {
+      var tgUser = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user;
+      if (tgUser && tgUser.id) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', API_URL + '/set-lang', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send(JSON.stringify({ chat_id: tgUser.id, lang: lang }));
+      }
+    } catch(e) {}
   }
 
   function updateTexts() {

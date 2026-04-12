@@ -323,7 +323,12 @@ async function handleBotWebhook(request, env) {
       const chatId = update.message.chat.id;
       const text = update.message.text;
       const from = update.message.from || {};
-      const lang = (from.language_code || '').startsWith('ru') ? 'ru' : 'en';
+      // Язык из DB (выбранный в приложении), по умолчанию английский
+      let lang = 'en';
+      try {
+        const u = await env.DB.prepare('SELECT lang FROM users WHERE chat_id = ?').bind(chatId).first();
+        if (u && u.lang) lang = u.lang;
+      } catch(e) {}
 
       // Проверяем, ждём ли комментарий к отзыву
       if (!text.startsWith('/')) {
@@ -357,8 +362,8 @@ async function handleBotWebhook(request, env) {
       if (text === '/start') {
         try {
           await env.DB.prepare(
-            'INSERT INTO users (chat_id, username, first_name, lang) VALUES (?, ?, ?, ?) ON CONFLICT(chat_id) DO UPDATE SET username = excluded.username, first_name = excluded.first_name, lang = excluded.lang'
-          ).bind(chatId, from.username || null, from.first_name || null, lang).run();
+            'INSERT INTO users (chat_id, username, first_name, lang) VALUES (?, ?, ?, ?) ON CONFLICT(chat_id) DO UPDATE SET username = excluded.username, first_name = excluded.first_name'
+          ).bind(chatId, from.username || null, from.first_name || null, 'en').run();
         } catch(e) {
           console.error('DB user insert error:', e.message);
         }
@@ -645,6 +650,15 @@ export default {
       }
       if (path === '/feedback' && request.method === 'POST') {
         return handleFeedback(request, env);
+      }
+      if (path === '/set-lang' && request.method === 'POST') {
+        const { chat_id, lang: newLang } = await request.json();
+        if (chat_id && (newLang === 'ru' || newLang === 'en')) {
+          try {
+            await env.DB.prepare('UPDATE users SET lang = ? WHERE chat_id = ?').bind(newLang, chat_id).run();
+          } catch(e) {}
+        }
+        return jsonResponse({ ok: true });
       }
       if (request.method === 'POST') {
         return handleGenerate(request, env);
