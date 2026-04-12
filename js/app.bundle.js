@@ -64,7 +64,7 @@
       card_hint: 'Tap to flip',
       card_reset: 'Back to start',
       card_regen: '\u21BB Regenerate',
-      exercise_translate: 'Choose the translation',
+      exercise_translate: 'Choose the definition',
       exercise_fillblank: 'Fill in the blank',
       exercise_progress: ' of ',
       exercise_next: 'Next: fill in the blank \u2192',
@@ -351,7 +351,7 @@
     xhr.onerror = function() { onError(t('err_network')); };
     xhr.ontimeout = function() { onError(t('err_timeout')); };
 
-    var payload = { topic: topic, level: selectedLevel };
+    var payload = { topic: topic, level: selectedLevel, lang: currentLang };
     if (exclude && exclude.length) { payload.exclude = exclude; }
     try {
       var tgUser = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user;
@@ -580,20 +580,32 @@
   function renderCard() {
     if (CARDS.length === 0) return;
     var card = CARDS[currentCardIndex];
+    var frontHTML, backHTML;
+    if (currentLang === 'en') {
+      frontHTML =
+        '<div class="flashcard-spacer"></div>' +
+        '<div class="flashcard-word">' + card.word + '</div>' +
+        '<div class="flashcard-spacer"></div>' +
+        '<button class="speak-btn" data-word="' + card.word.replace(/"/g, '&quot;') + '" aria-label="Listen">&#128264;</button>';
+      backHTML =
+        '<div class="flashcard-explanation">' + card.explanation + '</div>' +
+        '<div class="flashcard-example">"' + card.example + '"</div>';
+    } else {
+      frontHTML =
+        '<div class="flashcard-spacer"></div>' +
+        '<div class="flashcard-word">' + card.word + '</div>' +
+        '<div class="flashcard-explanation">' + card.explanation + '</div>' +
+        '<div class="flashcard-spacer"></div>' +
+        '<button class="speak-btn" data-word="' + card.word.replace(/"/g, '&quot;') + '" aria-label="Listen">&#128264;</button>';
+      backHTML =
+        '<div class="flashcard-translation">' + card.translation + '</div>' +
+        '<div class="flashcard-example">"' + card.example + '"</div>';
+    }
     $('cards-container').innerHTML =
       '<div class="flashcard">' +
         '<div class="flashcard-inner">' +
-          '<div class="flashcard-front">' +
-            '<div class="flashcard-spacer"></div>' +
-            '<div class="flashcard-word">' + card.word + '</div>' +
-            '<div class="flashcard-explanation">' + card.explanation + '</div>' +
-            '<div class="flashcard-spacer"></div>' +
-            '<button class="speak-btn" data-word="' + card.word.replace(/"/g, '&quot;') + '" aria-label="Listen">&#128264;</button>' +
-          '</div>' +
-          '<div class="flashcard-back">' +
-            '<div class="flashcard-translation">' + card.translation + '</div>' +
-            '<div class="flashcard-example">"' + card.example + '"</div>' +
-          '</div>' +
+          '<div class="flashcard-front">' + frontHTML + '</div>' +
+          '<div class="flashcard-back">' + backHTML + '</div>' +
         '</div>' +
       '</div>';
 
@@ -665,12 +677,14 @@
     var area = $('learning-area');
     var idx = order[learningStep];
     var card = CARDS[idx];
+    var answerField = currentLang === 'en' ? 'explanation' : 'translation';
+    var correctAnswer = card[answerField];
     var others = [];
     for (var i = 0; i < CARDS.length; i++) {
-      if (i !== idx) others.push(CARDS[i].translation);
+      if (i !== idx) others.push(CARDS[i][answerField]);
     }
     var distractors = shuffle(others).slice(0, 3);
-    var options = shuffle([card.translation].concat(distractors));
+    var options = shuffle([correctAnswer].concat(distractors));
 
     area.innerHTML =
       '<div class="exercise-header">' +
@@ -686,7 +700,7 @@
       '<div class="exercise-options">' + buildOptionsHTML(options) + '</div>';
 
     answered = false;
-    bindOptions(area, card.translation);
+    bindOptions(area, correctAnswer);
   }
 
   function renderFillBlank() {

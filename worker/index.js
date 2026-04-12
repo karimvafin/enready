@@ -24,6 +24,7 @@ async function handleGenerate(request, env) {
   const body = await request.json();
   const { topic, chat_id } = body;
   const level = ['A2','B1','B2','C1'].includes(body.level) ? body.level : 'B1';
+  const lang = body.lang === 'ru' ? 'ru' : 'en';
   const exclude = Array.isArray(body.exclude) ? body.exclude.slice(0, 20) : [];
   if (!topic || typeof topic !== 'string' || topic.length > 500) {
     return jsonResponse({ error: 'Invalid topic' }, 400);
@@ -54,6 +55,13 @@ async function handleGenerate(request, env) {
     ? `\n- IMPORTANT: Do NOT use any of these words or phrases: ${exclude.join(', ')}. Generate completely different vocabulary.`
     : '';
 
+  const translationField = lang === 'ru'
+    ? `"translation": "Russian translation",`
+    : '';
+  const translationRule = lang === 'ru'
+    ? '- Translations must be in Russian'
+    : '- Do NOT include any Russian text. The "explanation" field must be a clear, simple definition in English (1 sentence)';
+
   const prompt = `You are an English language tutor. Generate vocabulary at CEFR ${level} level for the topic: "${topic}".
 
 Return a valid JSON object with exactly this structure (no markdown, no code blocks, just raw JSON):
@@ -63,7 +71,7 @@ Return a valid JSON object with exactly this structure (no markdown, no code blo
       "id": 1,
       "word": "English word or phrase",
       "explanation": "Short explanation in English",
-      "translation": "Russian translation",
+      ${translationField}
       "example": "Example sentence using this word"
     }
   ],
@@ -82,7 +90,7 @@ Rules:
 - Cards should be relevant vocabulary for the given topic at CEFR ${level} level
 - IMPORTANT: Avoid basic/elementary vocabulary (A1 level) such as common words like "cat", "table", "good", "big", "house". Focus on words that a ${level} learner would find challenging but useful
 - Include collocations, phrasal verbs, or idiomatic expressions where appropriate for the level
-- Translations must be in Russian
+- ${translationRule}
 - Examples should be natural and contextual
 - In sentences, use ___ (triple underscore) for the blank
 - The "blank" field should contain the exact word/phrase to fill in
