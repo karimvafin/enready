@@ -464,8 +464,11 @@ body {
   color: var(--primary);
 }
 
+.flashcard-spacer {
+  flex: 1;
+}
+
 .speak-btn {
-  margin-top: auto;
   width: 40px;
   height: 40px;
   border-radius: 50%;

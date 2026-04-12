@@ -454,8 +454,10 @@
       '<div class="flashcard">' +
         '<div class="flashcard-inner">' +
           '<div class="flashcard-front">' +
+            '<div class="flashcard-spacer"></div>' +
             '<div class="flashcard-word">' + card.word + '</div>' +
             '<div class="flashcard-explanation">' + card.explanation + '</div>' +
+            '<div class="flashcard-spacer"></div>' +
             '<button class="speak-btn" data-word="' + card.word.replace(/"/g, '&quot;') + '" aria-label="Listen">&#128264;</button>' +
           '</div>' +
           '<div class="flashcard-back">' +
