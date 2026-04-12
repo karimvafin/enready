@@ -454,12 +454,9 @@
       '<div class="flashcard">' +
         '<div class="flashcard-inner">' +
           '<div class="flashcard-front">' +
-            '<div class="flashcard-word-row">' +
-              '<div class="flashcard-word">' + card.word + '</div>' +
-              '<button class="speak-btn" data-word="' + card.word.replace(/"/g, '&quot;') + '" aria-label="Listen">&#128264;</button>' +
-            '</div>' +
+            '<div class="flashcard-word">' + card.word + '</div>' +
             '<div class="flashcard-explanation">' + card.explanation + '</div>' +
-            '<div class="flashcard-hint">\u041d\u0430\u0436\u043c\u0438, \u0447\u0442\u043e\u0431\u044b \u043f\u0435\u0440\u0435\u0432\u0435\u0440\u043d\u0443\u0442\u044c</div>' +
+            '<button class="speak-btn" data-word="' + card.word.replace(/"/g, '&quot;') + '" aria-label="Listen">&#128264;</button>' +
           '</div>' +
           '<div class="flashcard-back">' +
             '<div class="flashcard-translation">' + card.translation + '</div>' +
