@@ -353,6 +353,41 @@ async function handleBotWebhook(request, env) {
             }]]
           }
         );
+      } else if (text === '/help') {
+        const dailyLimit = parseInt(env.DAILY_LIMIT || '10', 10);
+        await sendTelegramMessage(env, chatId,
+          '\u{2753} <b>Как работает EnReady</b>\n\n' +
+
+          '<b>Что это?</b>\n' +
+          'EnReady \u2014 бот для изучения английских слов и фраз. Ты пишешь тему, а ИИ генерирует персональные учебные материалы.\n\n' +
+
+          '<b>Что ты получишь:</b>\n' +
+          '\u25B8 <b>10 карточек</b> \u2014 слово, перевод, объяснение и пример\n' +
+          '\u25B8 <b>Упражнение на перевод</b> \u2014 выбери правильный перевод из вариантов\n' +
+          '\u25B8 <b>Упражнение на подстановку</b> \u2014 вставь пропущенное слово в предложение\n' +
+          '\u25B8 <b>Озвучка</b> \u2014 нажми на кнопку \u{1F509} на карточке, чтобы услышать произношение\n\n' +
+
+          '<b>Уровни сложности:</b>\n' +
+          'На главном экране можно выбрать уровень: A2, B1, B2 или C1. Слова подбираются по стандарту CEFR.\n\n' +
+
+          '<b>Лимиты:</b>\n' +
+          '\u25B8 ' + dailyLimit + ' генераций в день\n' +
+          '\u25B8 Если лимит исчерпан \u2014 попробуй завтра\n' +
+          '\u25B8 Пройденные темы сохраняются в истории и доступны без лимита\n\n' +
+
+          '<b>Кнопка \u00ABПерегенерировать\u00BB:</b>\n' +
+          'Если слова не понравились \u2014 нажми \u00ABПерегенерировать\u00BB в карточках. Бот создаст новые слова на ту же тему (старые не повторятся).\n\n' +
+
+          '<b>Команды:</b>\n' +
+          '/start \u2014 начать\n' +
+          '/help \u2014 это сообщение',
+          {
+            inline_keyboard: [[{
+              text: '\u{1F680} Открыть EnReady',
+              web_app: { url: env.WEBAPP_URL }
+            }]]
+          }
+        );
       } else if (text === '/stats') {
         const adminId = env.ADMIN_CHAT_ID;
         if (adminId && String(chatId) === String(adminId)) {
@@ -486,6 +521,25 @@ export default {
     try {
       if (path === '/webhook' && request.method === 'POST') {
         return handleBotWebhook(request, env);
+      }
+      if (path === '/setup' && request.method === 'GET') {
+        const token = new URL(request.url).searchParams.get('token');
+        if (token !== env.STATS_TOKEN) {
+          return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        // Регистрация команд меню бота
+        const cmdResp = await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/setMyCommands', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            commands: [
+              { command: 'start', description: 'Запустить приложение' },
+              { command: 'help', description: 'Как работает EnReady' }
+            ]
+          })
+        });
+        const cmdResult = await cmdResp.json();
+        return jsonResponse({ commands: cmdResult });
       }
       if (path === '/stats' && request.method === 'GET') {
         return handleStats(request, env);
