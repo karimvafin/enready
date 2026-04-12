@@ -136,16 +136,15 @@ body {
 
 .level-selector {
   display: flex;
-  gap: 0;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 1.5px solid var(--border);
+  gap: 10px;
+  justify-content: center;
 }
 
 .level-btn {
-  flex: 1;
-  padding: 8px 0;
-  border: none;
+  width: 52px;
+  height: 36px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
   background: var(--surface);
   color: var(--text-secondary);
   font-size: 14px;
@@ -154,17 +153,22 @@ body {
   transition: all var(--transition);
 }
 
-.level-btn:not(:last-child) {
-  border-right: 1.5px solid var(--border);
-}
-
 .level-btn.active {
   background: var(--primary);
   color: var(--primary-text);
+  border-color: var(--primary);
 }
 
 .level-btn:active:not(.active) {
   background: var(--primary-pale);
+  border-color: var(--primary-light);
+}
+
+@media (hover: hover) {
+  .level-btn:hover:not(.active) {
+    border-color: var(--primary-light);
+    color: var(--primary);
+  }
 }
 
 .home-chips {
