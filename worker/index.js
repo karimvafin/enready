@@ -29,6 +29,25 @@ async function handleGenerate(request, env) {
     return jsonResponse({ error: 'Invalid topic' }, 400);
   }
 
+  // Лимит генераций в день
+  const dailyLimit = parseInt(env.DAILY_LIMIT || '10', 10);
+  if (!chat_id) {
+    return jsonResponse({ error: 'Откройте приложение через Telegram' }, 403);
+  }
+  if (chat_id) {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const count = await env.DB.prepare(
+        "SELECT COUNT(*) as cnt FROM generations WHERE chat_id = ? AND created_at >= ? || 'T00:00:00'"
+      ).bind(chat_id, today).first();
+      if (count && count.cnt >= dailyLimit) {
+        return jsonResponse({ error: 'Достигнут дневной лимит (' + dailyLimit + ' генераций). Попробуйте завтра!' }, 429);
+      }
+    } catch(e) {
+      console.error('Limit check error:', e.message);
+    }
+  }
+
   await incrementStat(env, 'generations_total');
 
   const excludeRule = exclude.length > 0
