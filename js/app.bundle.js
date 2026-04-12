@@ -3,6 +3,7 @@
 
   // ===== CONFIG =====
   var API_URL = 'https://enready-api.enready.workers.dev'; // TODO: replace after deploy
+  var selectedLevel = 'B1';
 
   // ===== ERROR OVERLAY =====
   window.onerror = function(msg, src, line) {
@@ -141,7 +142,7 @@
     xhr.onerror = function() { onError('\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0442\u0438. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435.'); };
     xhr.ontimeout = function() { onError('\u0412\u0440\u0435\u043c\u044f \u043e\u0436\u0438\u0434\u0430\u043d\u0438\u044f \u0438\u0441\u0442\u0435\u043a\u043b\u043e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451.'); };
 
-    var payload = { topic: topic };
+    var payload = { topic: topic, level: selectedLevel };
     try {
       var tgUser = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user;
       if (tgUser && tgUser.id) { payload.chat_id = tgUser.id; }
@@ -528,6 +529,34 @@
 
   // ===== HOME =====
   function initHome(app) {
+    // Level selector
+    var levelBtns = $$('.level-btn');
+    for (var i = 0; i < levelBtns.length; i++) {
+      (function(btn) {
+        btn.addEventListener('click', function() {
+          for (var j = 0; j < levelBtns.length; j++) {
+            setClass(levelBtns[j], 'active', levelBtns[j] === btn);
+          }
+          selectedLevel = btn.getAttribute('data-level');
+          tg.hapticLight();
+        }, false);
+      })(levelBtns[i]);
+    }
+
+    var chips = $$('.home-chip');
+    for (var i = 0; i < chips.length; i++) {
+      (function(chip) {
+        chip.addEventListener('click', function() {
+          var topic = chip.getAttribute('data-topic');
+          if (topic) {
+            $('home-input').value = topic;
+            $('home-input').focus();
+            tg.hapticLight();
+          }
+        }, false);
+      })(chips[i]);
+    }
+
     $('home-form').addEventListener('submit', function(e) {
       e.preventDefault();
       var input = $('home-input');

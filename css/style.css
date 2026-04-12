@@ -134,6 +134,73 @@ body {
   max-width: 300px;
 }
 
+.level-selector {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1.5px solid var(--border);
+}
+
+.level-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.level-btn:not(:last-child) {
+  border-right: 1.5px solid var(--border);
+}
+
+.level-btn.active {
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
+.level-btn:active:not(.active) {
+  background: var(--primary-pale);
+}
+
+.home-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.home-chip {
+  padding: 8px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.home-chip:active {
+  transform: scale(0.95);
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-pale);
+}
+
+@media (hover: hover) {
+  .home-chip:hover {
+    border-color: var(--primary-light);
+    color: var(--primary);
+  }
+}
+
 .home-form {
   position: sticky;
   bottom: 0;

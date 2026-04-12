@@ -23,13 +23,14 @@ async function incrementStat(env, key) {
 async function handleGenerate(request, env) {
   const body = await request.json();
   const { topic, chat_id } = body;
+  const level = ['A2','B1','B2','C1'].includes(body.level) ? body.level : 'B1';
   if (!topic || typeof topic !== 'string' || topic.length > 500) {
     return jsonResponse({ error: 'Invalid topic' }, 400);
   }
 
   await incrementStat(env, 'generations_total');
 
-  const prompt = `You are an English language tutor. Generate learning materials for the topic: "${topic}".
+  const prompt = `You are an English language tutor. Generate vocabulary at CEFR ${level} level for the topic: "${topic}".
 
 Return a valid JSON object with exactly this structure (no markdown, no code blocks, just raw JSON):
 {
@@ -54,7 +55,9 @@ Return a valid JSON object with exactly this structure (no markdown, no code blo
 Rules:
 - Generate exactly 10 cards
 - Generate exactly 10 sentences (one per card, matching by cardId)
-- Cards should be relevant vocabulary for the given topic
+- Cards should be relevant vocabulary for the given topic at CEFR ${level} level
+- IMPORTANT: Avoid basic/elementary vocabulary (A1 level) such as common words like "cat", "table", "good", "big", "house". Focus on words that a ${level} learner would find challenging but useful
+- Include collocations, phrasal verbs, or idiomatic expressions where appropriate for the level
 - Translations must be in Russian
 - Examples should be natural and contextual
 - In sentences, use ___ (triple underscore) for the blank
@@ -81,7 +84,7 @@ Rules:
   if (!response.ok) {
     await incrementStat(env, 'generations_error');
     if (chat_id) {
-      try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success) VALUES (?, ?, 0)').bind(chat_id, topic).run(); } catch(e) {}
+      try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success, level) VALUES (?, ?, 0, ?)').bind(chat_id, topic, level).run(); } catch(e) {}
     }
     const errText = await response.text();
     return jsonResponse({ error: 'OpenRouter: ' + errText }, 502);
@@ -102,7 +105,7 @@ Rules:
   } catch(e) {
     await incrementStat(env, 'generations_error');
     if (chat_id) {
-      try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success) VALUES (?, ?, 0)').bind(chat_id, topic).run(); } catch(e) {}
+      try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success, level) VALUES (?, ?, 0, ?)').bind(chat_id, topic, level).run(); } catch(e) {}
     }
     return jsonResponse({ error: 'Failed to parse model response' }, 502);
   }
@@ -110,14 +113,14 @@ Rules:
   if (!result.cards || !result.sentences || !Array.isArray(result.cards) || !Array.isArray(result.sentences)) {
     await incrementStat(env, 'generations_error');
     if (chat_id) {
-      try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success) VALUES (?, ?, 0)').bind(chat_id, topic).run(); } catch(e) {}
+      try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success, level) VALUES (?, ?, 0, ?)').bind(chat_id, topic, level).run(); } catch(e) {}
     }
     return jsonResponse({ error: 'Invalid response format from model' }, 502);
   }
 
   await incrementStat(env, 'generations_success');
   if (chat_id) {
-    try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success) VALUES (?, ?, 1)').bind(chat_id, topic).run(); } catch(e) {}
+    try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success, level) VALUES (?, ?, 1, ?)').bind(chat_id, topic, level).run(); } catch(e) {}
     // Запрашиваем отзыв после первой успешной генерации
     try {
       const user = await env.DB.prepare('SELECT feedback_asked FROM users WHERE chat_id = ?').bind(chat_id).first();
