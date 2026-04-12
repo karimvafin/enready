@@ -205,6 +205,77 @@ body {
   }
 }
 
+/* History */
+.history-section {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.history-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: all var(--transition);
+}
+
+.history-item:active {
+  background: var(--primary-pale);
+}
+
+.history-item-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item-level {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-pale);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.history-item-delete {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 0 0 10px;
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
 .home-form {
   position: sticky;
   bottom: 0;
@@ -386,11 +457,39 @@ body {
   color: white;
 }
 
+.flashcard-word-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
 .flashcard-word {
   font-size: 28px;
   font-weight: 700;
-  margin-bottom: 16px;
   color: var(--primary);
+}
+
+.speak-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--primary);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+
+.speak-btn:active {
+  background: var(--primary-pale);
+  transform: scale(0.9);
 }
 
 .flashcard-explanation {

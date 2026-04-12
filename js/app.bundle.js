@@ -108,6 +108,84 @@
   var CARDS = [];
   var SENTENCES = [];
   var currentTopic = '';
+  var HISTORY_KEY = 'enready_history';
+  var MAX_HISTORY = 10;
+
+  // ===== HISTORY =====
+  function getHistory() {
+    try {
+      return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+    } catch(e) { return []; }
+  }
+
+  function saveToHistory(topic, level, cards, sentences) {
+    var history = getHistory();
+    // Remove duplicate topic
+    for (var i = history.length - 1; i >= 0; i--) {
+      if (history[i].topic === topic) history.splice(i, 1);
+    }
+    history.unshift({ topic: topic, level: level, cards: cards, sentences: sentences, ts: Date.now() });
+    if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch(e) {}
+  }
+
+  function removeFromHistory(index) {
+    var history = getHistory();
+    history.splice(index, 1);
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch(e) {}
+  }
+
+  function renderHistory() {
+    var history = getHistory();
+    var section = $('history-section');
+    var list = $('history-list');
+    if (!history.length) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = '';
+    list.innerHTML = '';
+    for (var i = 0; i < history.length; i++) {
+      (function(idx, item) {
+        var btn = document.createElement('button');
+        btn.className = 'history-item';
+        btn.innerHTML = '<span class="history-item-text">' + escapeHtml(item.topic) + '</span>' +
+          '<span class="history-item-level">' + (item.level || 'B1') + '</span>' +
+          '<span class="history-item-delete">&times;</span>';
+        btn.addEventListener('click', function(e) {
+          var del = e.target;
+          if (del.className === 'history-item-delete') {
+            e.stopPropagation();
+            removeFromHistory(idx);
+            renderHistory();
+            tg.hapticLight();
+            return;
+          }
+          CARDS = item.cards;
+          SENTENCES = item.sentences;
+          currentTopic = item.topic;
+          var query = { id: Date.now(), text: item.topic, title: item.topic.length > 30 ? item.topic.slice(0, 30) + '...' : item.topic };
+          app.openTopic(query);
+          tg.hapticLight();
+        }, false);
+        list.appendChild(btn);
+      })(i, history[i]);
+    }
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // ===== SPEAK =====
+  function speakWord(word) {
+    if (!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(word);
+    u.lang = 'en-US';
+    u.rate = 0.9;
+    speechSynthesis.speak(u);
+  }
 
   // ===== API =====
   function generateMaterials(topic, onSuccess, onError, exclude) {
@@ -271,6 +349,15 @@
   function initCards() {
     var container = $('cards-container');
     container.addEventListener('click', function(e) {
+      // Speak button — don't flip
+      if (e.target.className === 'speak-btn' || findParent(e.target, 'speak-btn')) {
+        e.stopPropagation();
+        var btn = e.target.className === 'speak-btn' ? e.target : findParent(e.target, 'speak-btn');
+        var word = btn.getAttribute('data-word');
+        if (word) speakWord(word);
+        tg.hapticLight();
+        return;
+      }
       var card = findParent(e.target, 'flashcard');
       if (card) {
         card.classList.toggle('flipped');
@@ -298,6 +385,7 @@
       generateMaterials(currentTopic, function(data) {
         CARDS = data.cards;
         SENTENCES = data.sentences;
+        saveToHistory(currentTopic, selectedLevel, CARDS, SENTENCES);
         app.showView('topic');
         app.switchTab('cards');
         resetCards();
@@ -366,7 +454,10 @@
       '<div class="flashcard">' +
         '<div class="flashcard-inner">' +
           '<div class="flashcard-front">' +
-            '<div class="flashcard-word">' + card.word + '</div>' +
+            '<div class="flashcard-word-row">' +
+              '<div class="flashcard-word">' + card.word + '</div>' +
+              '<button class="speak-btn" data-word="' + card.word.replace(/"/g, '&quot;') + '" aria-label="Listen">&#128264;</button>' +
+            '</div>' +
             '<div class="flashcard-explanation">' + card.explanation + '</div>' +
             '<div class="flashcard-hint">\u041d\u0430\u0436\u043c\u0438, \u0447\u0442\u043e\u0431\u044b \u043f\u0435\u0440\u0435\u0432\u0435\u0440\u043d\u0443\u0442\u044c</div>' +
           '</div>' +
@@ -604,6 +695,7 @@
       generateMaterials(text, function(data) {
         CARDS = data.cards;
         SENTENCES = data.sentences;
+        saveToHistory(text, selectedLevel, CARDS, SENTENCES);
         app.openTopic(query);
       }, function(errMsg) {
         $('loading-subtext').textContent = 'Error: ' + errMsg;
@@ -631,6 +723,7 @@
       } else {
         tg.hideBack();
         tg.hideMain();
+        if (name === 'home') renderHistory();
       }
     },
 
@@ -665,6 +758,7 @@
       initLearning();
       initDialog();
       initFeedback();
+      renderHistory();
       var self = this;
       var tabBtns = $$('.tab-btn');
       for (var i = 0; i < tabBtns.length; i++) {
