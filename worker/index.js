@@ -118,6 +118,27 @@ Rules:
   await incrementStat(env, 'generations_success');
   if (chat_id) {
     try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success) VALUES (?, ?, 1)').bind(chat_id, topic).run(); } catch(e) {}
+    // Запрашиваем отзыв после первой успешной генерации
+    try {
+      const user = await env.DB.prepare('SELECT feedback_asked FROM users WHERE chat_id = ?').bind(chat_id).first();
+      if (user && !user.feedback_asked) {
+        await env.DB.prepare('UPDATE users SET feedback_asked = 1 WHERE chat_id = ?').bind(chat_id).run();
+        await sendTelegramMessage(env, chat_id,
+          '\u{1F4AC} <b>Как вам EnReady?</b>\n\nОцените приложение \u2014 это займёт пару секунд:',
+          {
+            inline_keyboard: [[
+              { text: '1 \u2B50', callback_data: 'rate_1' },
+              { text: '2 \u2B50', callback_data: 'rate_2' },
+              { text: '3 \u2B50', callback_data: 'rate_3' },
+              { text: '4 \u2B50', callback_data: 'rate_4' },
+              { text: '5 \u2B50', callback_data: 'rate_5' },
+            ]]
+          }
+        );
+      }
+    } catch(e) {
+      console.error('Feedback ask error:', e.message);
+    }
   }
   return jsonResponse(result);
 }
@@ -153,14 +174,12 @@ async function handleStats(request, env) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 
-  // KV stats
   const kvKeys = ['app_opens', 'generations_total', 'generations_success', 'generations_error'];
   const stats = {};
   for (const key of kvKeys) {
     stats[key] = parseInt(await env.STATS.get(key) || '0', 10);
   }
 
-  // D1 data
   try {
     const usersResult = await env.DB.prepare('SELECT COUNT(*) as count FROM users').first();
     stats.bot_users = usersResult.count;
@@ -193,139 +212,212 @@ async function handleStats(request, env) {
 // ===== TELEGRAM BOT WEBHOOK =====
 async function handleBotWebhook(request, env) {
   try {
-  const update = await request.json();
+    const update = await request.json();
 
-  if (update.message && update.message.text) {
-    const chatId = update.message.chat.id;
-    const text = update.message.text;
-    const from = update.message.from || {};
+    // Обработка нажатий на inline-кнопки (оценка)
+    if (update.callback_query) {
+      const cb = update.callback_query;
+      const chatId = cb.message.chat.id;
+      const data = cb.data;
 
-    if (text === '/start') {
-      // Сохраняем/обновляем пользователя в D1
-      try {
-        await env.DB.prepare(
-          'INSERT INTO users (chat_id, username, first_name) VALUES (?, ?, ?) ON CONFLICT(chat_id) DO UPDATE SET username = excluded.username, first_name = excluded.first_name'
-        ).bind(chatId, from.username || null, from.first_name || null).run();
-      } catch(e) {
-        console.error('DB user insert error:', e.message);
-      }
+      if (data && data.startsWith('rate_')) {
+        const rating = parseInt(data.split('_')[1], 10);
+        if (rating >= 1 && rating <= 5) {
+          // Сохраняем оценку в DB
+          const fbResult = await env.DB.prepare('INSERT INTO feedback (chat_id, rating) VALUES (?, ?) RETURNING id')
+            .bind(chatId, rating).first();
 
-      // KV unique counter
-      const userKey = 'user:' + chatId;
-      const exists = await env.STATS.get(userKey);
-      if (!exists) {
-        await env.STATS.put(userKey, '1');
-        await incrementStat(env, 'bot_users');
-      }
-
-      await sendTelegramMessage(env, chatId,
-        '\u{1F44B} <b>Добро пожаловать в EnReady!</b>\n\n' +
-        'Я помогу тебе быстро выучить английские слова и фразы на любую тему.\n\n' +
-        '\u{1F4DD} Напиши тему и я создам для тебя:\n' +
-        '\u25B8 <b>Карточки</b> со словами и переводом\n' +
-        '\u25B8 <b>Упражнения</b> на перевод\n' +
-        '\u25B8 <b>Задания</b> на подстановку слов\n\n' +
-        'Нажми кнопку ниже, чтобы начать! \u{1F447}',
-        {
-          inline_keyboard: [[{
-            text: '\u{1F680} Открыть EnReady',
-            web_app: { url: env.WEBAPP_URL }
-          }]]
-        }
-      );
-    } else if (text === '/stats') {
-      const adminId = env.ADMIN_CHAT_ID;
-      if (adminId && String(chatId) === String(adminId)) {
-        const keys = ['bot_users', 'app_opens', 'generations_total', 'generations_success', 'generations_error'];
-        const stats = {};
-        for (const key of keys) {
-          stats[key] = parseInt(await env.STATS.get(key) || '0', 10);
-        }
-
-        // Последние генерации из D1
-        let recentText = '';
-        try {
-          const recent = await env.DB.prepare(
-            'SELECT g.topic, g.success, g.created_at, u.username, u.first_name FROM generations g LEFT JOIN users u ON g.chat_id = u.chat_id ORDER BY g.created_at DESC LIMIT 5'
-          ).all();
-          if (recent.results.length > 0) {
-            recentText = '\n\n\u{1F4CB} <b>Последние генерации:</b>\n';
-            for (const r of recent.results) {
-              const name = r.username ? '@' + r.username : (r.first_name || '?');
-              const status = r.success ? '\u2705' : '\u274C';
-              recentText += status + ' ' + name + ': ' + r.topic + '\n';
-            }
+          // Запоминаем ID отзыва для комментария
+          if (fbResult && fbResult.id) {
+            await env.DB.prepare('UPDATE users SET awaiting_feedback_id = ? WHERE chat_id = ?')
+              .bind(fbResult.id, chatId).run();
           }
-        } catch(e) {}
 
-        // Отзывы из D1
-        let feedbackText = '';
+          // Отвечаем на callback
+          await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/answerCallbackQuery', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callback_query_id: cb.id, text: '\u2B50'.repeat(rating) + ' Спасибо!' })
+          });
+
+          // Убираем кнопки из сообщения
+          await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/editMessageReplyMarkup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, message_id: cb.message.message_id, reply_markup: { inline_keyboard: [] } })
+          });
+
+          // Предлагаем оставить комментарий
+          await sendTelegramMessage(env, chatId,
+            '\u2B50'.repeat(rating) + ' Спасибо за оценку!\n\n' +
+            'Если хотите, напишите комментарий \u2014 что понравилось или что улучшить.\n' +
+            'Или просто нажмите кнопку ниже, чтобы продолжить.',
+            {
+              inline_keyboard: [[{
+                text: '\u{1F680} Открыть EnReady',
+                web_app: { url: env.WEBAPP_URL }
+              }]]
+            }
+          );
+        }
+      }
+      return new Response('OK');
+    }
+
+    // Обработка текстовых сообщений
+    if (update.message && update.message.text) {
+      const chatId = update.message.chat.id;
+      const text = update.message.text;
+      const from = update.message.from || {};
+
+      // Проверяем, ждём ли комментарий к отзыву
+      if (!text.startsWith('/')) {
         try {
-          const avgResult = await env.DB.prepare('SELECT AVG(rating) as avg, COUNT(*) as count FROM feedback').first();
-          if (avgResult.count > 0) {
-            const stars = '\u2B50'.repeat(Math.round(avgResult.avg));
-            feedbackText = '\n\n\u{1F4AC} <b>Отзывы:</b> ' + stars + ' ' + (Math.round(avgResult.avg * 10) / 10) + '/5 (' + avgResult.count + ' шт.)';
-            const recent = await env.DB.prepare(
-              'SELECT f.rating, f.text, u.username, u.first_name FROM feedback f LEFT JOIN users u ON f.chat_id = u.chat_id ORDER BY f.created_at DESC LIMIT 3'
-            ).all();
-            for (const r of recent.results) {
-              if (r.text) {
-                const name = r.username ? '@' + r.username : (r.first_name || '?');
-                feedbackText += '\n' + '\u2B50'.repeat(r.rating) + ' ' + name + ': ' + r.text;
+          const user = await env.DB.prepare('SELECT awaiting_feedback_id FROM users WHERE chat_id = ?').bind(chatId).first();
+          if (user && user.awaiting_feedback_id) {
+            await env.DB.prepare('UPDATE feedback SET text = ? WHERE id = ?')
+              .bind(text.substring(0, 1000), user.awaiting_feedback_id).run();
+            await env.DB.prepare('UPDATE users SET awaiting_feedback_id = NULL WHERE chat_id = ?')
+              .bind(chatId).run();
+            await sendTelegramMessage(env, chatId,
+              '\u{1F64F} Спасибо за отзыв! Мы обязательно учтём ваше мнение.',
+              {
+                inline_keyboard: [[{
+                  text: '\u{1F680} Открыть EnReady',
+                  web_app: { url: env.WEBAPP_URL }
+                }]]
               }
-            }
+            );
+            return new Response('OK');
           }
-        } catch(e) {}
+        } catch(e) {
+          console.error('Feedback comment error:', e.message);
+        }
+      }
+
+      if (text === '/start') {
+        try {
+          await env.DB.prepare(
+            'INSERT INTO users (chat_id, username, first_name) VALUES (?, ?, ?) ON CONFLICT(chat_id) DO UPDATE SET username = excluded.username, first_name = excluded.first_name'
+          ).bind(chatId, from.username || null, from.first_name || null).run();
+        } catch(e) {
+          console.error('DB user insert error:', e.message);
+        }
+
+        const userKey = 'user:' + chatId;
+        const exists = await env.STATS.get(userKey);
+        if (!exists) {
+          await env.STATS.put(userKey, '1');
+          await incrementStat(env, 'bot_users');
+        }
 
         await sendTelegramMessage(env, chatId,
-          '\u{1F4CA} <b>Статистика EnReady</b>\n\n' +
-          '\u{1F464} Пользователей бота: <b>' + stats.bot_users + '</b>\n' +
-          '\u{1F4F1} Открытий приложения: <b>' + stats.app_opens + '</b>\n' +
-          '\u{1F504} Всего генераций: <b>' + stats.generations_total + '</b>\n' +
-          '\u2705 Успешных: <b>' + stats.generations_success + '</b>\n' +
-          '\u274C Ошибок: <b>' + stats.generations_error + '</b>' +
-          recentText +
-          feedbackText
-        );
-      } else {
-        await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
-      }
-    } else if (text === '/reset') {
-      const adminId = env.ADMIN_CHAT_ID;
-      if (adminId && String(chatId) === String(adminId)) {
-        const statKeys = ['bot_users', 'app_opens', 'generations_total', 'generations_success', 'generations_error'];
-        for (const key of statKeys) {
-          await env.STATS.put(key, '0');
-        }
-        let cursor = undefined;
-        do {
-          const list = await env.STATS.list({ prefix: 'user:', cursor });
-          for (const key of list.keys) {
-            await env.STATS.delete(key.name);
+          '\u{1F44B} <b>Добро пожаловать в EnReady!</b>\n\n' +
+          'Я помогу тебе быстро выучить английские слова и фразы на любую тему.\n\n' +
+          '\u{1F4DD} Напиши тему и я создам для тебя:\n' +
+          '\u25B8 <b>Карточки</b> со словами и переводом\n' +
+          '\u25B8 <b>Упражнения</b> на перевод\n' +
+          '\u25B8 <b>Задания</b> на подстановку слов\n\n' +
+          'Нажми кнопку ниже, чтобы начать! \u{1F447}',
+          {
+            inline_keyboard: [[{
+              text: '\u{1F680} Открыть EnReady',
+              web_app: { url: env.WEBAPP_URL }
+            }]]
           }
-          cursor = list.list_complete ? undefined : list.cursor;
-        } while (cursor);
-        // Очищаем D1
-        try {
-          await env.DB.prepare('DELETE FROM generations').run();
-          await env.DB.prepare('DELETE FROM users').run();
-        } catch(e) {}
-        await sendTelegramMessage(env, chatId, '\u2705 Статистика обнулена.');
-      } else {
-        await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
-      }
-    } else {
-      await sendTelegramMessage(env, chatId,
-        'Нажми кнопку ниже, чтобы открыть приложение! \u{1F447}',
-        {
-          inline_keyboard: [[{
-            text: '\u{1F680} Открыть EnReady',
-            web_app: { url: env.WEBAPP_URL }
-          }]]
+        );
+      } else if (text === '/stats') {
+        const adminId = env.ADMIN_CHAT_ID;
+        if (adminId && String(chatId) === String(adminId)) {
+          const keys = ['bot_users', 'app_opens', 'generations_total', 'generations_success', 'generations_error'];
+          const stats = {};
+          for (const key of keys) {
+            stats[key] = parseInt(await env.STATS.get(key) || '0', 10);
+          }
+
+          let recentText = '';
+          try {
+            const recent = await env.DB.prepare(
+              'SELECT g.topic, g.success, g.created_at, u.username, u.first_name FROM generations g LEFT JOIN users u ON g.chat_id = u.chat_id ORDER BY g.created_at DESC LIMIT 5'
+            ).all();
+            if (recent.results.length > 0) {
+              recentText = '\n\n\u{1F4CB} <b>Последние генерации:</b>\n';
+              for (const r of recent.results) {
+                const name = r.username ? '@' + r.username : (r.first_name || '?');
+                const status = r.success ? '\u2705' : '\u274C';
+                recentText += status + ' ' + name + ': ' + r.topic + '\n';
+              }
+            }
+          } catch(e) {}
+
+          let feedbackText = '';
+          try {
+            const avgResult = await env.DB.prepare('SELECT AVG(rating) as avg, COUNT(*) as count FROM feedback').first();
+            if (avgResult.count > 0) {
+              const stars = '\u2B50'.repeat(Math.round(avgResult.avg));
+              feedbackText = '\n\n\u{1F4AC} <b>Отзывы:</b> ' + stars + ' ' + (Math.round(avgResult.avg * 10) / 10) + '/5 (' + avgResult.count + ' шт.)';
+              const recent = await env.DB.prepare(
+                'SELECT f.rating, f.text, u.username, u.first_name FROM feedback f LEFT JOIN users u ON f.chat_id = u.chat_id ORDER BY f.created_at DESC LIMIT 3'
+              ).all();
+              for (const r of recent.results) {
+                if (r.text) {
+                  const name = r.username ? '@' + r.username : (r.first_name || '?');
+                  feedbackText += '\n' + '\u2B50'.repeat(r.rating) + ' ' + name + ': ' + r.text;
+                }
+              }
+            }
+          } catch(e) {}
+
+          await sendTelegramMessage(env, chatId,
+            '\u{1F4CA} <b>Статистика EnReady</b>\n\n' +
+            '\u{1F464} Пользователей бота: <b>' + stats.bot_users + '</b>\n' +
+            '\u{1F4F1} Открытий приложения: <b>' + stats.app_opens + '</b>\n' +
+            '\u{1F504} Всего генераций: <b>' + stats.generations_total + '</b>\n' +
+            '\u2705 Успешных: <b>' + stats.generations_success + '</b>\n' +
+            '\u274C Ошибок: <b>' + stats.generations_error + '</b>' +
+            recentText +
+            feedbackText
+          );
+        } else {
+          await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
         }
-      );
+      } else if (text === '/reset') {
+        const adminId = env.ADMIN_CHAT_ID;
+        if (adminId && String(chatId) === String(adminId)) {
+          const statKeys = ['bot_users', 'app_opens', 'generations_total', 'generations_success', 'generations_error'];
+          for (const key of statKeys) {
+            await env.STATS.put(key, '0');
+          }
+          let cursor = undefined;
+          do {
+            const list = await env.STATS.list({ prefix: 'user:', cursor });
+            for (const key of list.keys) {
+              await env.STATS.delete(key.name);
+            }
+            cursor = list.list_complete ? undefined : list.cursor;
+          } while (cursor);
+          try {
+            await env.DB.prepare('DELETE FROM feedback').run();
+            await env.DB.prepare('DELETE FROM generations').run();
+            await env.DB.prepare('DELETE FROM users').run();
+          } catch(e) {}
+          await sendTelegramMessage(env, chatId, '\u2705 Статистика обнулена.');
+        } else {
+          await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
+        }
+      } else {
+        // Любой другой текст — кнопка открытия приложения
+        await sendTelegramMessage(env, chatId,
+          'Нажми кнопку ниже, чтобы открыть приложение! \u{1F447}',
+          {
+            inline_keyboard: [[{
+              text: '\u{1F680} Открыть EnReady',
+              web_app: { url: env.WEBAPP_URL }
+            }]]
+          }
+        );
+      }
     }
-  }
 
   } catch(e) {
     console.error('Webhook error:', e.message, e.stack);

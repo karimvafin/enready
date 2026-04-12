@@ -1,0 +1,2 @@
+ALTER TABLE users ADD COLUMN feedback_asked INTEGER DEFAULT 0;
+ALTER TABLE users ADD COLUMN awaiting_feedback_id INTEGER DEFAULT NULL;
