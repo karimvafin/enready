@@ -589,22 +589,19 @@
     if (CARDS.length === 0) return;
     var card = CARDS[currentCardIndex];
     var frontHTML, backHTML;
+    var speakBtnHTML = '<button class="speak-btn" data-word="' + card.word.replace(/"/g, '&quot;') + '" aria-label="Listen">&#128264;</button>';
     if (currentLang === 'en') {
       frontHTML =
-        '<div class="flashcard-spacer"></div>' +
         '<div class="flashcard-word">' + card.word + '</div>' +
-        '<div class="flashcard-spacer"></div>' +
-        '<button class="speak-btn" data-word="' + card.word.replace(/"/g, '&quot;') + '" aria-label="Listen">&#128264;</button>';
+        speakBtnHTML;
       backHTML =
         '<div class="flashcard-explanation">' + card.explanation + '</div>' +
         '<div class="flashcard-example">"' + card.example + '"</div>';
     } else {
       frontHTML =
-        '<div class="flashcard-spacer"></div>' +
         '<div class="flashcard-word">' + card.word + '</div>' +
         '<div class="flashcard-explanation">' + card.explanation + '</div>' +
-        '<div class="flashcard-spacer"></div>' +
-        '<button class="speak-btn" data-word="' + card.word.replace(/"/g, '&quot;') + '" aria-label="Listen">&#128264;</button>';
+        speakBtnHTML;
       backHTML =
         '<div class="flashcard-translation">' + card.translation + '</div>' +
         '<div class="flashcard-example">"' + card.example + '"</div>';

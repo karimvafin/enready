@@ -479,6 +479,14 @@ body {
 .flashcard-front {
   background: var(--surface);
   border: 2px solid var(--border);
+  position: relative;
+}
+
+.flashcard-front .speak-btn {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .flashcard-back {

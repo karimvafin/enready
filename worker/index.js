@@ -37,7 +37,7 @@ async function handleGenerate(request, env) {
   }
   if (chat_id) {
     try {
-      const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00';
+      const todayStart = new Date().toISOString().slice(0, 10) + ' 00:00:00';
       const count = await env.DB.prepare(
         "SELECT COUNT(*) as cnt FROM generations WHERE chat_id = ? AND created_at >= ?"
       ).bind(chat_id, todayStart).first();
@@ -459,7 +459,9 @@ async function handleBotWebhook(request, env) {
               'SELECT g.topic, g.success, g.created_at, u.username, u.first_name FROM generations g LEFT JOIN users u ON g.chat_id = u.chat_id ORDER BY g.created_at DESC LIMIT 5'
             ).all();
             if (recent.results.length > 0) {
-              recentText = '\n\n\u{1F4CB} <b>Последние генерации:</b>\n';
+              recentText = lang === 'ru'
+                ? '\n\n\u{1F4CB} <b>Последние генерации:</b>\n'
+                : '\n\n\u{1F4CB} <b>Recent generations:</b>\n';
               for (const r of recent.results) {
                 const name = r.username ? '@' + r.username : (r.first_name || '?');
                 const status = r.success ? '\u2705' : '\u274C';
@@ -473,7 +475,9 @@ async function handleBotWebhook(request, env) {
             const avgResult = await env.DB.prepare('SELECT AVG(rating) as avg, COUNT(*) as count FROM feedback').first();
             if (avgResult.count > 0) {
               const stars = '\u2B50'.repeat(Math.round(avgResult.avg));
-              feedbackText = '\n\n\u{1F4AC} <b>Отзывы:</b> ' + stars + ' ' + (Math.round(avgResult.avg * 10) / 10) + '/5 (' + avgResult.count + ' шт.)';
+              feedbackText = lang === 'ru'
+                ? '\n\n\u{1F4AC} <b>Отзывы:</b> ' + stars + ' ' + (Math.round(avgResult.avg * 10) / 10) + '/5 (' + avgResult.count + ' шт.)'
+                : '\n\n\u{1F4AC} <b>Feedback:</b> ' + stars + ' ' + (Math.round(avgResult.avg * 10) / 10) + '/5 (' + avgResult.count + ')';
               const recent = await env.DB.prepare(
                 'SELECT f.rating, f.text, u.username, u.first_name FROM feedback f LEFT JOIN users u ON f.chat_id = u.chat_id ORDER BY f.created_at DESC LIMIT 3'
               ).all();
@@ -486,16 +490,20 @@ async function handleBotWebhook(request, env) {
             }
           } catch(e) {}
 
-          await sendTelegramMessage(env, chatId,
-            '\u{1F4CA} <b>Статистика EnReady</b>\n\n' +
-            '\u{1F464} Пользователей бота: <b>' + stats.bot_users + '</b>\n' +
-            '\u{1F4F1} Открытий приложения: <b>' + stats.app_opens + '</b>\n' +
-            '\u{1F504} Всего генераций: <b>' + stats.generations_total + '</b>\n' +
-            '\u2705 Успешных: <b>' + stats.generations_success + '</b>\n' +
-            '\u274C Ошибок: <b>' + stats.generations_error + '</b>' +
-            recentText +
-            feedbackText
-          );
+          const statsMsg = lang === 'ru'
+            ? '\u{1F4CA} <b>Статистика EnReady</b>\n\n' +
+              '\u{1F464} Пользователей бота: <b>' + stats.bot_users + '</b>\n' +
+              '\u{1F4F1} Открытий приложения: <b>' + stats.app_opens + '</b>\n' +
+              '\u{1F504} Всего генераций: <b>' + stats.generations_total + '</b>\n' +
+              '\u2705 Успешных: <b>' + stats.generations_success + '</b>\n' +
+              '\u274C Ошибок: <b>' + stats.generations_error + '</b>'
+            : '\u{1F4CA} <b>EnReady Stats</b>\n\n' +
+              '\u{1F464} Bot users: <b>' + stats.bot_users + '</b>\n' +
+              '\u{1F4F1} App opens: <b>' + stats.app_opens + '</b>\n' +
+              '\u{1F504} Total generations: <b>' + stats.generations_total + '</b>\n' +
+              '\u2705 Successful: <b>' + stats.generations_success + '</b>\n' +
+              '\u274C Errors: <b>' + stats.generations_error + '</b>';
+          await sendTelegramMessage(env, chatId, statsMsg + recentText + feedbackText);
         } else {
           const adminMsg = lang === 'ru' ? 'Эта команда доступна только администратору.' : 'This command is only available to the admin.';
           await sendTelegramMessage(env, chatId, adminMsg);
@@ -520,7 +528,8 @@ async function handleBotWebhook(request, env) {
             await env.DB.prepare('DELETE FROM generations').run();
             await env.DB.prepare('DELETE FROM users').run();
           } catch(e) {}
-          await sendTelegramMessage(env, chatId, '\u2705 Статистика обнулена.');
+          const resetMsg = lang === 'ru' ? '\u2705 Статистика обнулена.' : '\u2705 Stats reset.';
+          await sendTelegramMessage(env, chatId, resetMsg);
         } else {
           const adminMsg = lang === 'ru' ? 'Эта команда доступна только администратору.' : 'This command is only available to the admin.';
           await sendTelegramMessage(env, chatId, adminMsg);
@@ -588,19 +597,32 @@ export default {
         if (token !== env.STATS_TOKEN) {
           return jsonResponse({ error: 'Unauthorized' }, 401);
         }
-        // Регистрация команд меню бота
-        const cmdResp = await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/setMyCommands', {
+        // Регистрация команд меню бота (default = English)
+        const cmdDefault = await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/setMyCommands', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            commands: [
+              { command: 'start', description: 'Launch the app' },
+              { command: 'help', description: 'How EnReady works' }
+            ]
+          })
+        });
+        // Russian commands
+        const cmdRu = await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/setMyCommands', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             commands: [
               { command: 'start', description: 'Запустить приложение' },
               { command: 'help', description: 'Как работает EnReady' }
-            ]
+            ],
+            language_code: 'ru'
           })
         });
-        const cmdResult = await cmdResp.json();
-        return jsonResponse({ commands: cmdResult });
+        const defaultResult = await cmdDefault.json();
+        const ruResult = await cmdRu.json();
+        return jsonResponse({ default: defaultResult, ru: ruResult });
       }
       if (path === '/stats' && request.method === 'GET') {
         return handleStats(request, env);
