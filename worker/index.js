@@ -382,13 +382,19 @@ async function handleBotWebhook(request, env) {
             '\u25B8 <b>Карточки</b> со словами и переводом\n' +
             '\u25B8 <b>Упражнения</b> на перевод\n' +
             '\u25B8 <b>Задания</b> на подстановку слов\n\n' +
+            '<b>Команды:</b>\n' +
+            '/start \u2014 начать\n' +
+            '/help \u2014 подробная справка\n\n' +
             'Нажми кнопку ниже, чтобы начать! \u{1F447}'
           : '\u{1F44B} <b>Welcome to EnReady!</b>\n\n' +
             'I\'ll help you learn English words and phrases on any topic.\n\n' +
             '\u{1F4DD} Type a topic and I\'ll create:\n' +
-            '\u25B8 <b>Flashcards</b> with words and translations\n' +
+            '\u25B8 <b>Flashcards</b> with words and definitions\n' +
             '\u25B8 <b>Translation</b> exercises\n' +
             '\u25B8 <b>Fill-in-the-blank</b> exercises\n\n' +
+            '<b>Commands:</b>\n' +
+            '/start \u2014 get started\n' +
+            '/help \u2014 detailed guide\n\n' +
             'Tap the button below to start! \u{1F447}';
         const openBtnText = lang === 'ru' ? '\u{1F680} Открыть EnReady' : '\u{1F680} Open EnReady';
         await sendTelegramMessage(env, chatId, startMsg,
