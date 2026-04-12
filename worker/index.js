@@ -21,7 +21,8 @@ async function incrementStat(env, key) {
 
 // ===== GENERATE ENDPOINT =====
 async function handleGenerate(request, env) {
-  const { topic } = await request.json();
+  const body = await request.json();
+  const { topic, chat_id } = body;
   if (!topic || typeof topic !== 'string' || topic.length > 500) {
     return jsonResponse({ error: 'Invalid topic' }, 400);
   }
@@ -79,6 +80,9 @@ Rules:
 
   if (!response.ok) {
     await incrementStat(env, 'generations_error');
+    if (chat_id) {
+      try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success) VALUES (?, ?, 0)').bind(chat_id, topic).run(); } catch(e) {}
+    }
     const errText = await response.text();
     return jsonResponse({ error: 'OpenRouter: ' + errText }, 502);
   }
@@ -97,15 +101,24 @@ Rules:
     result = JSON.parse(jsonStr);
   } catch(e) {
     await incrementStat(env, 'generations_error');
+    if (chat_id) {
+      try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success) VALUES (?, ?, 0)').bind(chat_id, topic).run(); } catch(e) {}
+    }
     return jsonResponse({ error: 'Failed to parse model response' }, 502);
   }
 
   if (!result.cards || !result.sentences || !Array.isArray(result.cards) || !Array.isArray(result.sentences)) {
     await incrementStat(env, 'generations_error');
+    if (chat_id) {
+      try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success) VALUES (?, ?, 0)').bind(chat_id, topic).run(); } catch(e) {}
+    }
     return jsonResponse({ error: 'Invalid response format from model' }, 502);
   }
 
   await incrementStat(env, 'generations_success');
+  if (chat_id) {
+    try { await env.DB.prepare('INSERT INTO generations (chat_id, topic, success) VALUES (?, ?, 1)').bind(chat_id, topic).run(); } catch(e) {}
+  }
   return jsonResponse(result);
 }
 
@@ -125,11 +138,31 @@ async function handleStats(request, env) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 
-  const keys = ['bot_users', 'app_opens', 'generations_total', 'generations_success', 'generations_error'];
+  // KV stats
+  const kvKeys = ['app_opens', 'generations_total', 'generations_success', 'generations_error'];
   const stats = {};
-  for (const key of keys) {
+  for (const key of kvKeys) {
     stats[key] = parseInt(await env.STATS.get(key) || '0', 10);
   }
+
+  // D1 data
+  try {
+    const usersResult = await env.DB.prepare('SELECT COUNT(*) as count FROM users').first();
+    stats.bot_users = usersResult.count;
+
+    const users = await env.DB.prepare(
+      'SELECT u.chat_id, u.username, u.first_name, u.created_at, COUNT(g.id) as gen_count, MAX(g.created_at) as last_gen FROM users u LEFT JOIN generations g ON u.chat_id = g.chat_id GROUP BY u.chat_id ORDER BY u.created_at DESC LIMIT 50'
+    ).all();
+    stats.users = users.results;
+
+    const recentGens = await env.DB.prepare(
+      'SELECT g.topic, g.success, g.created_at, u.username, u.first_name FROM generations g LEFT JOIN users u ON g.chat_id = u.chat_id ORDER BY g.created_at DESC LIMIT 20'
+    ).all();
+    stats.recent_generations = recentGens.results;
+  } catch(e) {
+    stats.db_error = e.message;
+  }
+
   return jsonResponse(stats);
 }
 
@@ -141,8 +174,19 @@ async function handleBotWebhook(request, env) {
   if (update.message && update.message.text) {
     const chatId = update.message.chat.id;
     const text = update.message.text;
+    const from = update.message.from || {};
 
     if (text === '/start') {
+      // Сохраняем/обновляем пользователя в D1
+      try {
+        await env.DB.prepare(
+          'INSERT INTO users (chat_id, username, first_name) VALUES (?, ?, ?) ON CONFLICT(chat_id) DO UPDATE SET username = excluded.username, first_name = excluded.first_name'
+        ).bind(chatId, from.username || null, from.first_name || null).run();
+      } catch(e) {
+        console.error('DB user insert error:', e.message);
+      }
+
+      // KV unique counter
       const userKey = 'user:' + chatId;
       const exists = await env.STATS.get(userKey);
       if (!exists) {
@@ -151,16 +195,16 @@ async function handleBotWebhook(request, env) {
       }
 
       await sendTelegramMessage(env, chatId,
-        '👋 <b>Добро пожаловать в EnReady!</b>\n\n' +
+        '\u{1F44B} <b>Добро пожаловать в EnReady!</b>\n\n' +
         'Я помогу тебе быстро выучить английские слова и фразы на любую тему.\n\n' +
-        '📝 Напиши тему и я создам для тебя:\n' +
-        '▸ <b>Карточки</b> со словами и переводом\n' +
-        '▸ <b>Упражнения</b> на перевод\n' +
-        '▸ <b>Задания</b> на подстановку слов\n\n' +
-        'Нажми кнопку ниже, чтобы начать! 👇',
+        '\u{1F4DD} Напиши тему и я создам для тебя:\n' +
+        '\u25B8 <b>Карточки</b> со словами и переводом\n' +
+        '\u25B8 <b>Упражнения</b> на перевод\n' +
+        '\u25B8 <b>Задания</b> на подстановку слов\n\n' +
+        'Нажми кнопку ниже, чтобы начать! \u{1F447}',
         {
           inline_keyboard: [[{
-            text: '🚀 Открыть EnReady',
+            text: '\u{1F680} Открыть EnReady',
             web_app: { url: env.WEBAPP_URL }
           }]]
         }
@@ -173,13 +217,31 @@ async function handleBotWebhook(request, env) {
         for (const key of keys) {
           stats[key] = parseInt(await env.STATS.get(key) || '0', 10);
         }
+
+        // Последние генерации из D1
+        let recentText = '';
+        try {
+          const recent = await env.DB.prepare(
+            'SELECT g.topic, g.success, g.created_at, u.username, u.first_name FROM generations g LEFT JOIN users u ON g.chat_id = u.chat_id ORDER BY g.created_at DESC LIMIT 5'
+          ).all();
+          if (recent.results.length > 0) {
+            recentText = '\n\n\u{1F4CB} <b>Последние генерации:</b>\n';
+            for (const r of recent.results) {
+              const name = r.username ? '@' + r.username : (r.first_name || '?');
+              const status = r.success ? '\u2705' : '\u274C';
+              recentText += status + ' ' + name + ': ' + r.topic + '\n';
+            }
+          }
+        } catch(e) {}
+
         await sendTelegramMessage(env, chatId,
-          '📊 <b>Статистика EnReady</b>\n\n' +
-          '👤 Пользователей бота: <b>' + stats.bot_users + '</b>\n' +
-          '📱 Открытий приложения: <b>' + stats.app_opens + '</b>\n' +
-          '🔄 Всего генераций: <b>' + stats.generations_total + '</b>\n' +
-          '✅ Успешных: <b>' + stats.generations_success + '</b>\n' +
-          '❌ Ошибок: <b>' + stats.generations_error + '</b>'
+          '\u{1F4CA} <b>Статистика EnReady</b>\n\n' +
+          '\u{1F464} Пользователей бота: <b>' + stats.bot_users + '</b>\n' +
+          '\u{1F4F1} Открытий приложения: <b>' + stats.app_opens + '</b>\n' +
+          '\u{1F504} Всего генераций: <b>' + stats.generations_total + '</b>\n' +
+          '\u2705 Успешных: <b>' + stats.generations_success + '</b>\n' +
+          '\u274C Ошибок: <b>' + stats.generations_error + '</b>' +
+          recentText
         );
       } else {
         await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
@@ -191,7 +253,6 @@ async function handleBotWebhook(request, env) {
         for (const key of statKeys) {
           await env.STATS.put(key, '0');
         }
-        // удаляем ключи уникальных пользователей
         let cursor = undefined;
         do {
           const list = await env.STATS.list({ prefix: 'user:', cursor });
@@ -200,16 +261,21 @@ async function handleBotWebhook(request, env) {
           }
           cursor = list.list_complete ? undefined : list.cursor;
         } while (cursor);
-        await sendTelegramMessage(env, chatId, '✅ Статистика обнулена.');
+        // Очищаем D1
+        try {
+          await env.DB.prepare('DELETE FROM generations').run();
+          await env.DB.prepare('DELETE FROM users').run();
+        } catch(e) {}
+        await sendTelegramMessage(env, chatId, '\u2705 Статистика обнулена.');
       } else {
         await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
       }
     } else {
       await sendTelegramMessage(env, chatId,
-        'Нажми кнопку ниже, чтобы открыть приложение! 👇',
+        'Нажми кнопку ниже, чтобы открыть приложение! \u{1F447}',
         {
           inline_keyboard: [[{
-            text: '🚀 Открыть EnReady',
+            text: '\u{1F680} Открыть EnReady',
             web_app: { url: env.WEBAPP_URL }
           }]]
         }
@@ -255,26 +321,18 @@ export default {
     }
 
     try {
-      // Telegram bot webhook
       if (path === '/webhook' && request.method === 'POST') {
         return handleBotWebhook(request, env);
       }
-
-      // Stats endpoint
       if (path === '/stats' && request.method === 'GET') {
         return handleStats(request, env);
       }
-
-      // Track events from Mini App
       if (path === '/track' && request.method === 'POST') {
         return handleTrack(request, env);
       }
-
-      // Generate materials (default POST)
       if (request.method === 'POST') {
         return handleGenerate(request, env);
       }
-
       return new Response('EnReady API', { status: 200 });
     } catch (err) {
       return jsonResponse({ error: err.message }, 500);

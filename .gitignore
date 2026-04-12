@@ -6,3 +6,5 @@ worker/.wrangler
 !.dev.vars.example
 .env*
 !.env.example
+
+dev_notes.md

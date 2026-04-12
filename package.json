@@ -1,0 +1,7 @@
+{
+  "name": "enready",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy && cd worker && wrangler deploy -c wrangler.toml"
+  }
+}

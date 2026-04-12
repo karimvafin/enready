@@ -141,7 +141,12 @@
     xhr.onerror = function() { onError('\u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u0435\u0442\u0438. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435.'); };
     xhr.ontimeout = function() { onError('\u0412\u0440\u0435\u043c\u044f \u043e\u0436\u0438\u0434\u0430\u043d\u0438\u044f \u0438\u0441\u0442\u0435\u043a\u043b\u043e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451.'); };
 
-    xhr.send(JSON.stringify({ topic: topic }));
+    var payload = { topic: topic };
+    try {
+      var tgUser = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user;
+      if (tgUser && tgUser.id) { payload.chat_id = tgUser.id; }
+    } catch(e) {}
+    xhr.send(JSON.stringify(payload));
   }
 
   // ===== TOAST =====
