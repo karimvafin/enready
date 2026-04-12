@@ -24,11 +24,16 @@ async function handleGenerate(request, env) {
   const body = await request.json();
   const { topic, chat_id } = body;
   const level = ['A2','B1','B2','C1'].includes(body.level) ? body.level : 'B1';
+  const exclude = Array.isArray(body.exclude) ? body.exclude.slice(0, 20) : [];
   if (!topic || typeof topic !== 'string' || topic.length > 500) {
     return jsonResponse({ error: 'Invalid topic' }, 400);
   }
 
   await incrementStat(env, 'generations_total');
+
+  const excludeRule = exclude.length > 0
+    ? `\n- IMPORTANT: Do NOT use any of these words or phrases: ${exclude.join(', ')}. Generate completely different vocabulary.`
+    : '';
 
   const prompt = `You are an English language tutor. Generate vocabulary at CEFR ${level} level for the topic: "${topic}".
 
@@ -63,7 +68,7 @@ Rules:
 - In sentences, use ___ (triple underscore) for the blank
 - The "blank" field should contain the exact word/phrase to fill in
 - IDs should be 1 through 10
-- Return ONLY valid JSON, no other text`;
+- Return ONLY valid JSON, no other text${excludeRule}`;
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',

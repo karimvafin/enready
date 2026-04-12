@@ -474,6 +474,23 @@ body {
   background: var(--primary-pale);
 }
 
+.cards-regen-btn {
+  padding: 10px 24px;
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.cards-regen-btn:active {
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
 /* ===== LEARNING ===== */
 .learning-area {
   padding: 20px;

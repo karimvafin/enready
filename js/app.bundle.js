@@ -107,9 +107,10 @@
   // ===== DYNAMIC DATA =====
   var CARDS = [];
   var SENTENCES = [];
+  var currentTopic = '';
 
   // ===== API =====
-  function generateMaterials(topic, onSuccess, onError) {
+  function generateMaterials(topic, onSuccess, onError, exclude) {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', API_URL, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
@@ -143,6 +144,7 @@
     xhr.ontimeout = function() { onError('\u0412\u0440\u0435\u043c\u044f \u043e\u0436\u0438\u0434\u0430\u043d\u0438\u044f \u0438\u0441\u0442\u0435\u043a\u043b\u043e. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451.'); };
 
     var payload = { topic: topic, level: selectedLevel };
+    if (exclude && exclude.length) { payload.exclude = exclude; }
     try {
       var tgUser = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user;
       if (tgUser && tgUser.id) { payload.chat_id = tgUser.id; }
@@ -283,6 +285,29 @@
       renderCard();
       tg.hapticLight();
     });
+
+    $('card-regen').addEventListener('click', function() {
+      if (!currentTopic) return;
+      var exclude = [];
+      for (var i = 0; i < CARDS.length; i++) {
+        exclude.push(CARDS[i].word);
+      }
+      tg.hapticMedium();
+      app.showView('loading');
+      $('loading-subtext').textContent = '\u041f\u0435\u0440\u0435\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u0443\u0435\u043c...';
+      generateMaterials(currentTopic, function(data) {
+        CARDS = data.cards;
+        SENTENCES = data.sentences;
+        app.showView('topic');
+        app.switchTab('cards');
+        resetCards();
+        resetLearning();
+      }, function(errMsg) {
+        $('loading-subtext').textContent = 'Error: ' + errMsg;
+        setTimeout(function() { app.showView('topic'); }, 3000);
+        tg.hapticError();
+      }, exclude);
+    }, false);
 
     container.addEventListener('touchstart', function(e) {
       touchStartX = e.changedTouches[0].screenX;
@@ -575,6 +600,7 @@
       app.showView('loading');
       $('loading-subtext').textContent = '\u042d\u0442\u043e \u0437\u0430\u0439\u043c\u0451\u0442 \u043d\u0435\u0441\u043a\u043e\u043b\u044c\u043a\u043e \u0441\u0435\u043a\u0443\u043d\u0434';
 
+      currentTopic = text;
       generateMaterials(text, function(data) {
         CARDS = data.cards;
         SENTENCES = data.sentences;
