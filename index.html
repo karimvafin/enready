@@ -72,6 +72,19 @@
         <div class="learning-percentage" id="learning-percentage"></div>
         <button id="learning-next-exercise" style="display:none">Next Exercise →</button>
         <button id="learning-restart" style="display:none">Start Over</button>
+        <div class="feedback-block" id="feedback-block" style="display:none">
+          <div class="feedback-title">Как вам приложение?</div>
+          <div class="feedback-stars" id="feedback-stars">
+            <span data-rating="1">&#9734;</span>
+            <span data-rating="2">&#9734;</span>
+            <span data-rating="3">&#9734;</span>
+            <span data-rating="4">&#9734;</span>
+            <span data-rating="5">&#9734;</span>
+          </div>
+          <textarea id="feedback-text" class="feedback-textarea" placeholder="Напишите отзыв (необязательно)" rows="2"></textarea>
+          <button id="feedback-send" class="feedback-send-btn" disabled>Отправить</button>
+          <div class="feedback-thanks" id="feedback-thanks" style="display:none">Спасибо за отзыв!</div>
+        </div>
       </div>
     </div>
 

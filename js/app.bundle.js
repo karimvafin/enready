@@ -149,6 +149,81 @@
     xhr.send(JSON.stringify(payload));
   }
 
+  // ===== FEEDBACK =====
+  var feedbackRating = 0;
+  var feedbackSent = false;
+
+  function initFeedback() {
+    var starsEl = $('feedback-stars');
+    var sendBtn = $('feedback-send');
+    if (!starsEl || !sendBtn) return;
+
+    var stars = starsEl.getElementsByTagName('span');
+    for (var i = 0; i < stars.length; i++) {
+      (function(idx) {
+        stars[idx].addEventListener('click', function() {
+          if (feedbackSent) return;
+          feedbackRating = idx + 1;
+          for (var j = 0; j < stars.length; j++) {
+            setClass(stars[j], 'active', j < feedbackRating);
+            stars[j].innerHTML = j < feedbackRating ? '&#9733;' : '&#9734;';
+          }
+          sendBtn.disabled = false;
+          tg.hapticLight();
+        }, false);
+      })(i);
+    }
+
+    sendBtn.addEventListener('click', function() {
+      if (feedbackSent || feedbackRating === 0) return;
+      var payload = { rating: feedbackRating };
+      var textEl = $('feedback-text');
+      if (textEl && textEl.value.trim()) {
+        payload.text = textEl.value.trim();
+      }
+      try {
+        var tgUser = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user;
+        if (tgUser && tgUser.id) { payload.chat_id = tgUser.id; }
+      } catch(e) {}
+
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', API_URL + '/feedback', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.send(JSON.stringify(payload));
+
+      feedbackSent = true;
+      sendBtn.style.display = 'none';
+      if (textEl) textEl.style.display = 'none';
+      starsEl.style.pointerEvents = 'none';
+      $('feedback-thanks').style.display = '';
+      tg.hapticSuccess();
+    }, false);
+  }
+
+  function showFeedbackBlock() {
+    var block = $('feedback-block');
+    if (block && !feedbackSent) {
+      block.style.display = '';
+    }
+  }
+
+  function resetFeedbackBlock() {
+    var block = $('feedback-block');
+    if (!block) return;
+    block.style.display = 'none';
+    if (!feedbackSent) {
+      feedbackRating = 0;
+      var stars = $('feedback-stars').getElementsByTagName('span');
+      for (var i = 0; i < stars.length; i++) {
+        setClass(stars[i], 'active', false);
+        stars[i].innerHTML = '&#9734;';
+      }
+      $('feedback-send').disabled = true;
+      $('feedback-text').value = '';
+      $('feedback-thanks').style.display = 'none';
+    }
+  }
+
   // ===== TOAST =====
   function showToast(msg) {
     var toast = $('toast');
@@ -441,10 +516,12 @@
       $('learning-next-exercise').style.display = '';
       $('learning-next-exercise').textContent = '\u0414\u0430\u043b\u0435\u0435: \u0432\u0441\u0442\u0430\u0432\u044c\u0442\u0435 \u0441\u043b\u043e\u0432\u043e \u2192';
       $('learning-restart').style.display = 'none';
+      resetFeedbackBlock();
       tg.showMain('\u0414\u0430\u043b\u0435\u0435: \u0432\u0441\u0442\u0430\u0432\u044c\u0442\u0435 \u0441\u043b\u043e\u0432\u043e \u2192', function() { startExercise(2); });
     } else {
       $('learning-next-exercise').style.display = 'none';
       $('learning-restart').style.display = '';
+      showFeedbackBlock();
       tg.showMain('\u041d\u0430\u0447\u0430\u0442\u044c \u0437\u0430\u043d\u043e\u0432\u043e', function() { startExercise(1); });
     }
   }
@@ -532,6 +609,7 @@
       initCards();
       initLearning();
       initDialog();
+      initFeedback();
       var self = this;
       var tabBtns = $$('.tab-btn');
       for (var i = 0; i < tabBtns.length; i++) {

@@ -571,6 +571,86 @@ html.dark .option-btn.wrong {
   transition: background var(--transition);
 }
 
+/* ===== FEEDBACK ===== */
+.feedback-block {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.feedback-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.feedback-stars {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.feedback-stars span {
+  font-size: 32px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: color 0.15s, transform 0.15s;
+}
+
+.feedback-stars span.active {
+  color: #F9A825;
+}
+
+.feedback-stars span:active {
+  transform: scale(1.2);
+}
+
+.feedback-textarea {
+  width: 100%;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+  resize: none;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.feedback-textarea:focus {
+  border-color: var(--primary-light);
+}
+
+.feedback-send-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--primary-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.feedback-send-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.feedback-thanks {
+  margin-top: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--success);
+}
+
 /* ===== DIALOG ===== */
 .dialog-area {
   flex: 1;

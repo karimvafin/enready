@@ -131,6 +131,21 @@ async function handleTrack(request, env) {
   return jsonResponse({ ok: true });
 }
 
+// ===== FEEDBACK ENDPOINT =====
+async function handleFeedback(request, env) {
+  const { chat_id, rating, text } = await request.json();
+  if (!rating || rating < 1 || rating > 5) {
+    return jsonResponse({ error: 'Rating must be 1-5' }, 400);
+  }
+  try {
+    await env.DB.prepare('INSERT INTO feedback (chat_id, rating, text) VALUES (?, ?, ?)')
+      .bind(chat_id || null, rating, text || null).run();
+  } catch(e) {
+    return jsonResponse({ error: 'DB error' }, 500);
+  }
+  return jsonResponse({ ok: true });
+}
+
 // ===== STATS ENDPOINT =====
 async function handleStats(request, env) {
   const token = new URL(request.url).searchParams.get('token');
@@ -159,6 +174,15 @@ async function handleStats(request, env) {
       'SELECT g.topic, g.success, g.created_at, u.username, u.first_name FROM generations g LEFT JOIN users u ON g.chat_id = u.chat_id ORDER BY g.created_at DESC LIMIT 20'
     ).all();
     stats.recent_generations = recentGens.results;
+
+    const feedbackResult = await env.DB.prepare(
+      'SELECT f.rating, f.text, f.created_at, u.username, u.first_name FROM feedback f LEFT JOIN users u ON f.chat_id = u.chat_id ORDER BY f.created_at DESC LIMIT 20'
+    ).all();
+    stats.feedback = feedbackResult.results;
+
+    const avgRating = await env.DB.prepare('SELECT AVG(rating) as avg, COUNT(*) as count FROM feedback').first();
+    stats.feedback_avg = avgRating.avg ? Math.round(avgRating.avg * 10) / 10 : null;
+    stats.feedback_count = avgRating.count;
   } catch(e) {
     stats.db_error = e.message;
   }
@@ -234,6 +258,25 @@ async function handleBotWebhook(request, env) {
           }
         } catch(e) {}
 
+        // Отзывы из D1
+        let feedbackText = '';
+        try {
+          const avgResult = await env.DB.prepare('SELECT AVG(rating) as avg, COUNT(*) as count FROM feedback').first();
+          if (avgResult.count > 0) {
+            const stars = '\u2B50'.repeat(Math.round(avgResult.avg));
+            feedbackText = '\n\n\u{1F4AC} <b>Отзывы:</b> ' + stars + ' ' + (Math.round(avgResult.avg * 10) / 10) + '/5 (' + avgResult.count + ' шт.)';
+            const recent = await env.DB.prepare(
+              'SELECT f.rating, f.text, u.username, u.first_name FROM feedback f LEFT JOIN users u ON f.chat_id = u.chat_id ORDER BY f.created_at DESC LIMIT 3'
+            ).all();
+            for (const r of recent.results) {
+              if (r.text) {
+                const name = r.username ? '@' + r.username : (r.first_name || '?');
+                feedbackText += '\n' + '\u2B50'.repeat(r.rating) + ' ' + name + ': ' + r.text;
+              }
+            }
+          }
+        } catch(e) {}
+
         await sendTelegramMessage(env, chatId,
           '\u{1F4CA} <b>Статистика EnReady</b>\n\n' +
           '\u{1F464} Пользователей бота: <b>' + stats.bot_users + '</b>\n' +
@@ -241,7 +284,8 @@ async function handleBotWebhook(request, env) {
           '\u{1F504} Всего генераций: <b>' + stats.generations_total + '</b>\n' +
           '\u2705 Успешных: <b>' + stats.generations_success + '</b>\n' +
           '\u274C Ошибок: <b>' + stats.generations_error + '</b>' +
-          recentText
+          recentText +
+          feedbackText
         );
       } else {
         await sendTelegramMessage(env, chatId, 'Эта команда доступна только администратору.');
@@ -329,6 +373,9 @@ export default {
       }
       if (path === '/track' && request.method === 'POST') {
         return handleTrack(request, env);
+      }
+      if (path === '/feedback' && request.method === 'POST') {
+        return handleFeedback(request, env);
       }
       if (request.method === 'POST') {
         return handleGenerate(request, env);
