@@ -8,3 +8,5 @@ worker/.wrangler
 !.env.example
 
 dev_notes.md
+
+tmp/
