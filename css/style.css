@@ -56,6 +56,97 @@ body {
   display: flex;
 }
 
+/* ===== BUY SCREEN ===== */
+.buy-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  gap: 16px;
+}
+
+.buy-icon {
+  font-size: 48px;
+}
+
+.buy-title {
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.buy-subtitle {
+  font-size: 15px;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.buy-packs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.buy-pack {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.buy-pack:active {
+  border-color: var(--primary);
+  background: var(--primary-pale);
+}
+
+.buy-pack-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.buy-pack-amount {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.buy-pack-discount {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: #27ae60;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.buy-pack-price {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.buy-back {
+  margin-top: 8px;
+  padding: 10px 32px;
+  border-radius: 20px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+}
+
 /* ===== LOADING SCREEN ===== */
 .loading-content {
   flex: 1;

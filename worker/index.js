@@ -42,10 +42,16 @@ async function handleGenerate(request, env) {
         "SELECT COUNT(*) as cnt FROM generations WHERE chat_id = ? AND created_at >= ?"
       ).bind(chat_id, todayStart).first();
       if (count && count.cnt >= dailyLimit) {
-        const limitMsg = lang === 'ru'
-          ? 'Достигнут дневной лимит (' + dailyLimit + ' генераций). Попробуйте завтра!'
-          : 'Daily limit reached (' + dailyLimit + ' generations). Try again tomorrow!';
-        return jsonResponse({ error: limitMsg }, 429);
+        // Проверяем бонусные генерации
+        const user = await env.DB.prepare('SELECT bonus_generations FROM users WHERE chat_id = ?').bind(chat_id).first();
+        if (user && user.bonus_generations > 0) {
+          await env.DB.prepare('UPDATE users SET bonus_generations = bonus_generations - 1 WHERE chat_id = ?').bind(chat_id).run();
+        } else {
+          const limitMsg = lang === 'ru'
+            ? 'Достигнут дневной лимит (' + dailyLimit + ' генераций). Купите дополнительные!'
+            : 'Daily limit reached (' + dailyLimit + ' generations). Buy extra!';
+          return jsonResponse({ error: limitMsg, buy: true }, 429);
+        }
       }
     } catch(e) {
       console.error('Limit check error:', e.message);
@@ -254,6 +260,43 @@ async function handleStats(request, env) {
 async function handleBotWebhook(request, env) {
   try {
     const update = await request.json();
+
+    // Обработка pre_checkout_query (подтверждение платежа Stars)
+    if (update.pre_checkout_query) {
+      await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/answerPreCheckoutQuery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
+      });
+      return new Response('OK');
+    }
+
+    // Обработка успешного платежа
+    if (update.message && update.message.successful_payment) {
+      const chatId = update.message.chat.id;
+      const payment = update.message.successful_payment;
+      const payload = payment.invoice_payload;
+      const packs = { pack_10: 10, pack_50: 50, pack_200: 200 };
+      const amount = packs[payload] || 0;
+      if (amount > 0) {
+        try {
+          await env.DB.prepare('UPDATE users SET bonus_generations = bonus_generations + ? WHERE chat_id = ?')
+            .bind(amount, chatId).run();
+        } catch(e) {
+          console.error('Payment DB error:', e.message);
+        }
+        let lang = 'en';
+        try {
+          const u = await env.DB.prepare('SELECT lang FROM users WHERE chat_id = ?').bind(chatId).first();
+          if (u && u.lang) lang = u.lang;
+        } catch(e) {}
+        const successMsg = lang === 'ru'
+          ? '\u2705 Оплата прошла! Вы получили <b>' + amount + '</b> дополнительных генераций.'
+          : '\u2705 Payment successful! You got <b>' + amount + '</b> extra generations.';
+        await sendTelegramMessage(env, chatId, successMsg);
+      }
+      return new Response('OK');
+    }
 
     // Обработка нажатий на inline-кнопки (оценка)
     if (update.callback_query) {
@@ -665,6 +708,44 @@ export default {
           } catch(e) {}
         }
         return jsonResponse({ ok: true });
+      }
+      if (path === '/buy' && request.method === 'POST') {
+        const { chat_id, pack } = await request.json();
+        const packs = {
+          pack_10:  { amount: 10,  stars: 10,  title_en: '10 generations',  title_ru: '10 генераций' },
+          pack_50:  { amount: 50,  stars: 30,  title_en: '50 generations',  title_ru: '50 генераций' },
+          pack_200: { amount: 200, stars: 100, title_en: '200 generations', title_ru: '200 генераций' }
+        };
+        const p = packs[pack];
+        if (!p || !chat_id) {
+          return jsonResponse({ error: 'Invalid pack or chat_id' }, 400);
+        }
+        // Определяем язык пользователя
+        let uLang = 'en';
+        try {
+          const u = await env.DB.prepare('SELECT lang FROM users WHERE chat_id = ?').bind(chat_id).first();
+          if (u && u.lang) uLang = u.lang;
+        } catch(e) {}
+        const title = uLang === 'ru' ? p.title_ru : p.title_en;
+        const desc = uLang === 'ru'
+          ? p.amount + ' дополнительных генераций для EnReady'
+          : p.amount + ' extra generations for EnReady';
+        const resp = await fetch('https://api.telegram.org/bot' + env.BOT_TOKEN + '/createInvoiceLink', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title,
+            description: desc,
+            payload: pack,
+            currency: 'XTR',
+            prices: [{ label: title, amount: p.stars }]
+          })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          return jsonResponse({ url: data.result });
+        }
+        return jsonResponse({ error: data.description || 'Failed to create invoice' }, 500);
       }
       if (request.method === 'POST') {
         return handleGenerate(request, env);

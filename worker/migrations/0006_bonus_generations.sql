@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN bonus_generations INTEGER DEFAULT 0;

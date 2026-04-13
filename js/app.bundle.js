@@ -48,7 +48,14 @@
       err_format: 'Неверный формат ответа',
       err_parse: 'Ошибка обработки ответа',
       err_network: 'Ошибка сети. Проверьте подключение.',
-      err_timeout: 'Время ожидания истекло. Попробуйте ещё.'
+      err_timeout: 'Время ожидания истекло. Попробуйте ещё.',
+      // Buy
+      buy_title: 'Нужно больше генераций?',
+      buy_subtitle: 'Дневной лимит исчерпан. Купите дополнительные генерации за Telegram Stars.',
+      buy_pack_10: '10 генераций',
+      buy_pack_50: '50 генераций',
+      buy_pack_200: '200 генераций',
+      buy_back: 'Назад'
     },
     en: {
       home_subtitle: 'Learn English words and phrases<br>on any topic',
@@ -83,7 +90,13 @@
       err_format: 'Invalid response format',
       err_parse: 'Error processing response',
       err_network: 'Network error. Check your connection.',
-      err_timeout: 'Request timed out. Try again.'
+      err_timeout: 'Request timed out. Try again.',
+      buy_title: 'Need more generations?',
+      buy_subtitle: 'Your daily limit is reached. Buy extra generations with Telegram Stars.',
+      buy_pack_10: '10 generations',
+      buy_pack_50: '50 generations',
+      buy_pack_200: '200 generations',
+      buy_back: 'Back'
     }
   };
 
@@ -146,6 +159,19 @@
     // Learning result
     var lst = $('learning-score-text');
     if (lst) lst.textContent = t('result_title');
+    // Buy
+    var bt = $('buy-title');
+    if (bt) bt.textContent = t('buy_title');
+    var bs = $('buy-subtitle');
+    if (bs) bs.textContent = t('buy_subtitle');
+    var bp10 = $('buy-pack-10-label');
+    if (bp10) bp10.textContent = t('buy_pack_10');
+    var bp50 = $('buy-pack-50-label');
+    if (bp50) bp50.textContent = t('buy_pack_50');
+    var bp200 = $('buy-pack-200-label');
+    if (bp200) bp200.textContent = t('buy_pack_200');
+    var bb = $('buy-back');
+    if (bb) bb.textContent = t('buy_back');
     // Lang toggle
     var langBtns = $$('.lang-btn');
     for (var i = 0; i < langBtns.length; i++) {
@@ -359,6 +385,10 @@
       } else {
         try {
           var err = JSON.parse(xhr.responseText);
+          if (err.buy) {
+            showBuyView();
+            return;
+          }
           onError(err.error || ('Server error ' + xhr.status));
         } catch(e) {
           onError('Server error ' + xhr.status);
@@ -801,6 +831,53 @@
     }
   }
 
+  // ===== BUY =====
+  function showBuyView() {
+    updateTexts();
+    app.showView('buy');
+  }
+
+  function initBuy(app) {
+    var packs = $$('.buy-pack');
+    for (var i = 0; i < packs.length; i++) {
+      (function(packBtn) {
+        packBtn.addEventListener('click', function() {
+          var pack = packBtn.getAttribute('data-pack');
+          tg.hapticMedium();
+          packBtn.disabled = true;
+          var chatId = null;
+          try {
+            var tgUser = window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user;
+            if (tgUser && tgUser.id) chatId = tgUser.id;
+          } catch(e) {}
+          if (!chatId) { packBtn.disabled = false; return; }
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', API_URL + '/buy', true);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.onload = function() {
+            packBtn.disabled = false;
+            try {
+              var data = JSON.parse(xhr.responseText);
+              if (data.url && window.Telegram && Telegram.WebApp.openInvoice) {
+                Telegram.WebApp.openInvoice(data.url, function(status) {
+                  if (status === 'paid') {
+                    tg.hapticSuccess();
+                    app.showView('home');
+                  }
+                });
+              }
+            } catch(e) {}
+          };
+          xhr.onerror = function() { packBtn.disabled = false; };
+          xhr.send(JSON.stringify({ chat_id: chatId, pack: pack }));
+        }, false);
+      })(packs[i]);
+    }
+    $('buy-back').addEventListener('click', function() {
+      app.showView('home');
+    }, false);
+  }
+
   // ===== HOME =====
   function initHome(app) {
     // Language toggle
@@ -889,6 +966,9 @@
       } else if (name === 'loading') {
         var self = this;
         tg.showBack(function() { self.showView('home'); });
+      } else if (name === 'buy') {
+        var self = this;
+        tg.showBack(function() { self.showView('home'); });
       } else {
         tg.hideBack();
         tg.hideMain();
@@ -923,6 +1003,7 @@
       tg.init();
       trackEvent('app_opened');
       initHome(this);
+      initBuy(this);
       initCards();
       initLearning();
       initDialog();
