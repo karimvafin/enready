@@ -35,7 +35,8 @@ async function handleGenerate(request, env) {
   if (!chat_id) {
     return jsonResponse({ error: 'Откройте приложение через Telegram' }, 403);
   }
-  if (chat_id) {
+  const isAdmin = env.ADMIN_CHAT_ID && String(chat_id) === String(env.ADMIN_CHAT_ID);
+  if (chat_id && !isAdmin) {
     try {
       const todayStart = new Date().toISOString().slice(0, 10) + ' 00:00:00';
       const count = await env.DB.prepare(
